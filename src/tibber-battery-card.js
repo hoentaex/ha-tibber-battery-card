@@ -156,7 +156,6 @@ export class TibberBatteryCard extends HTMLElement {
       subtitle: config.subtitle,
       animate: config.animations !== false && !reduced,
       prices: this._priceView(now),
-      windowCount: config.cheap_slots,
       dragTarget: this._dragTarget,
       popupButton: !!config.popup && !config._detail,
       closeButton: !!config._detail,
@@ -179,16 +178,17 @@ export class TibberBatteryCard extends HTMLElement {
     const showTomorrow = config.show_tomorrow && p.tomorrow.length > 0;
     const slots = showTomorrow ? [...p.today, ...p.tomorrow] : p.today;
     if (!slots.length) return { slots: [], expected, loading: p.loading };
-    const opts = { count: Number(config.cheap_slots) || 0, start: config.window_start };
-    let win;
-    if (p.window) win = new Set(p.window);
-    else {
-      win = computeWindow(p.today, opts);
-      if (showTomorrow) for (const x of computeWindow(p.tomorrow, opts)) win.add(x);
-    }
+    const all = [...p.today, ...p.tomorrow];
+    // The sensor's own window first (same blocks as the automations use), else the same rule computed here.
+    const win = p.window
+      ? new Set(p.window)
+      : computeWindow(all, now, {
+          count: Number(config.cheap_slots ?? 24) || 0,
+          horizon: Number(config.window_horizon_slots ?? 48) || 0,
+        });
     const days = showTomorrow ? 2 : 1;
-    const stats = priceStats(p.today.length ? p.today : slots);
-    const current = slotAt(slots, now);
+    const stats = p.stats ?? priceStats(p.today.length ? p.today : slots);
+    const current = slotAt(all, now);
     return {
       slots,
       expected,
@@ -196,7 +196,9 @@ export class TibberBatteryCard extends HTMLElement {
       days,
       from: startOfDay(now),
       to: startOfDay(now, days),
-      blocks: windowBlocks(slots, win),
+      // Blocks over all known slots; the chart clips them to the days shown.
+      blocks: windowBlocks(all, win),
+      inWindow: current ? win.has(current.t) : undefined,
       stats,
       current,
       level: current ? priceLevel(current.p, stats, win.has(current.t)) : undefined,

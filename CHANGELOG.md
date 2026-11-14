@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.0 (unreleased)
+
+- Charging window is now a rolling window, like the Home Assistant control logic: the `cheap_slots` (24) cheapest
+  of the next `window_horizon_slots` (48) quarter hours from the current slot, running past midnight once
+  tomorrow's prices are known, `min(24, available)` without them. `window_start` is gone.
+- The price sensor's `ladefenster` attribute is used by default (`window_attribute`); the card only computes the
+  window itself when it is missing. Blocks falling on tomorrow are drawn only with `show_tomorrow`.
+- Min / Ø / Max from the sensor's `min_today` / `max_today` / `avg_today` when present
+- "Charging window" chip shows whether the current slot is in the window; legend reads "Ladefenster"
+- Upcoming price area a little fainter (45 %)
+- README: template sensor with `today`, `tomorrow`, day figures and `ladefenster`
+
 ## 0.1.0 (2026-11-14)
 
 - First version of the main card `custom:tibber-battery-card`: header with status pill, SoC ring with target marker,

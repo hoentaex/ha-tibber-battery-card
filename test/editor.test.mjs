@@ -24,11 +24,12 @@ test("the editor covers every option, with entity selectors", () => {
 });
 
 test("form data round trip keeps the YAML minimal", () => {
-  const config = { soc_entity: "sensor.soc", mode_options: { block: "Sperren" }, window_start: "07:30" };
+  const config = { soc_entity: "sensor.soc", mode_options: { block: "Sperren" }, window_horizon_slots: 32 };
   const data = toFormData(config);
   assert.equal(data.mode_block, "Sperren");
   assert.equal(data.mode_auto, "auto");
-  assert.equal(data.window_start, "07:30:00");
+  assert.equal(data.window_horizon_slots, 32);
+  assert.equal(data.window_attribute, "ladefenster");
   assert.equal(data.cheap_slots, 24);
   assert.deepEqual(fromFormData(data), config);
   assert.deepEqual(fromFormData(toFormData({ soc_entity: "s" }, true), true), { soc_entity: "s" });

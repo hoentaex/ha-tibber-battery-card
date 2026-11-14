@@ -1,6 +1,7 @@
 process.env.TZ = "Europe/Berlin";
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
   atTime,
@@ -101,23 +102,74 @@ test("current slot, stats and level", () => {
   assert.equal(priceLevel(30, st, false), "mid");
 });
 
-test("charging window: the N cheapest slots from window_start, merged into blocks", () => {
-  // Cheap at night (excluded, before 06:00) and from 12:00 to 13:00 and 15:00 to 15:30.
+test("charging window: rolling 24 of the next 48 slots, merged into blocks", () => {
+  // Cheap from 12:00 to 13:00 and 15:00 to 15:30, cheaper still at night (outside the next 12 h at 10:05).
   const price = (i) => (i < 24 ? 0.1 : (i >= 48 && i < 52) || (i >= 60 && i < 62) ? 0.2 : 0.4);
   const slots = normalizeSlots(day("2026-11-14", price));
-  const win = computeWindow(slots, { count: 6, start: "06:00" });
+  const now = new Date("2026-11-14T10:05:00").getTime();
+  const win = computeWindow(slots, now, { count: 6, horizon: 48 });
   assert.equal(win.size, 6);
-  for (const t of win) assert.ok(new Date(t).getHours() >= 6);
+  for (const t of win) assert.ok(t >= quarterStart(now) && t < quarterStart(now) + 48 * QUARTER);
   const blocks = windowBlocks(slots, win);
   assert.equal(blocks.length, 2);
   assert.equal(blocks[0].to - blocks[0].from, 4 * QUARTER);
   assert.equal(new Date(blocks[1].from).getHours(), 15);
 });
 
+test("charging window runs past midnight once tomorrow's prices are there", () => {
+  const slots = normalizeSlots([...day("2026-11-14", () => 0.4), ...day("2026-11-15", () => 0.2)]);
+  const win = computeWindow(slots, new Date("2026-11-14T20:10:00").getTime());
+  assert.equal(win.size, 24);
+  for (const t of win) assert.equal(new Date(t).getDate(), 15);
+  // The current slot counts: at 20:10 the horizon ends at 08:00 tomorrow.
+  assert.ok(Math.max(...win) < new Date("2026-11-15T08:00:00").getTime());
+});
+
+test("charging window without tomorrow's prices: min(24, slots left)", () => {
+  const slots = normalizeSlots(day("2026-11-14"));
+  assert.equal(computeWindow(slots, new Date("2026-11-14T21:00:00").getTime()).size, 12);
+  assert.equal(computeWindow(slots, new Date("2026-11-14T23:50:00").getTime()).size, 1);
+  assert.equal(computeWindow(slots, new Date("2026-11-14T15:00:00").getTime()).size, 24);
+});
+
+test("charging window across the DST change keeps 48 real quarter hours", () => {
+  const slots = normalizeSlots([...day("2026-10-25", (i) => (i % 5) / 100 + 0.3)]);
+  assert.equal(slots.length, 100);
+  const now = new Date("2026-10-25T01:00:00").getTime();
+  const win = computeWindow(slots, now, { count: 48, horizon: 48 });
+  assert.equal(win.size, 48);
+  assert.equal(Math.max(...win) - Math.min(...win), 47 * QUARTER);
+});
+
+test("own window matches the sensor's ladefenster attribute (real data)", () => {
+  const fx = JSON.parse(readFileSync(new URL("./fixtures/tibber-2026-11-14.json", import.meta.url), "utf8"));
+  const slots = normalizeSlots([...fx.today, ...fx.tomorrow]);
+  const win = computeWindow(slots, Date.parse(fx.now));
+  const expected = fx.ladefenster.map((x) => Date.parse(x)).sort((a, b) => a - b);
+  assert.deepEqual(
+    [...win].sort((a, b) => a - b),
+    expected,
+  );
+});
+
+test("price entity: attributes, default ladefenster attribute and day figures in ct", () => {
+  const fx = JSON.parse(readFileSync(new URL("./fixtures/tibber-2026-11-14.json", import.meta.url), "utf8"));
+  const { _note, now, ...attributes } = fx;
+  const hass = { states: { "sensor.p": { state: "0.3864", attributes } } };
+  const p = new PriceSource().get(hass, { price_entity: "sensor.p" }, Date.parse(now));
+  assert.equal(p.today.length, 96);
+  assert.equal(p.tomorrow.length, 96);
+  assert.equal(p.window.length, 24);
+  assert.ok(Math.abs(p.stats.min - 32.53) < 1e-9);
+  assert.ok(Math.abs(p.stats.avg - 38.81) < 1e-9);
+  const noWin = new PriceSource().get(hass, { price_entity: "sensor.p", window_attribute: "missing" }, Date.parse(now));
+  assert.equal(noWin.window, undefined);
+});
+
 test("charging window on a 92-slot day", () => {
   const slots = normalizeSlots(day("2026-03-29"));
   assert.equal(slots.length, 92);
-  const win = computeWindow(slots, { count: 24, start: "06:00" });
+  const win = computeWindow(slots, new Date("2026-03-29T06:00:00").getTime());
   assert.equal(win.size, 24);
 });
 

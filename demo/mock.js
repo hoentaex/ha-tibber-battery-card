@@ -1,3 +1,5 @@
+import { computeWindow, normalizeSlots } from "../src/shared.js";
+
 // Fake `hass` for the demo page and the screenshots: the entities of the author's installation,
 // Tibber 15-minute prices of 14 Nov 2026 (ct/kWh) replayed on the current day.
 export const PRICES = [
@@ -17,6 +19,26 @@ const dayPrices = (offset) => {
   for (let i = 0, t = d.getTime(); new Date(t).getDate() === d.getDate(); i++, t += 900000)
     out.push({ start_time: new Date(t).toISOString(), price: (PRICES[i % 96] + offset * 1.7) / 100 });
   return out;
+};
+
+// The price sensor of the README template: today / tomorrow, day figures and the rolling charging window.
+const priceSensor = () => {
+  const today = dayPrices(0);
+  const tomorrow = dayPrices(1);
+  const ps = today.map((e) => e.price);
+  const all = normalizeSlots([...today, ...tomorrow]);
+  const now = Date.now();
+  const cur = all.find((x, i) => x.t <= now && (all[i + 1]?.t ?? Number.POSITIVE_INFINITY) > now);
+  const ladefenster = [...computeWindow(all, now)].sort((a, b) => a - b).map((t) => new Date(t).toISOString());
+  return s((cur?.p ?? 0) / 100, {
+    unit_of_measurement: "EUR/kWh",
+    today,
+    tomorrow,
+    min_today: Math.min(...ps),
+    max_today: Math.max(...ps),
+    avg_today: ps.reduce((a, b) => a + b, 0) / ps.length,
+    ladefenster,
+  });
 };
 
 export const SCENARIOS = {
@@ -73,6 +95,7 @@ export const SCENARIOS = {
 const s = (state, attributes = {}) => ({ state: String(state), attributes, last_updated: new Date().toISOString() });
 
 export const makeStates = (sc) => ({
+  "sensor.tibber_preise_15min": priceSensor(),
   "sensor.solarbank_2_e1600_ac_ladestand": s(sc.soc, { unit_of_measurement: "%", device_class: "battery" }),
   "input_number.tibber_anker_capacity_kwh": s(1.6, { min: 0.5, max: 10, step: 0.1, unit_of_measurement: "kWh" }),
   "sensor.solarbank_2_e1600_ac_akkuleistung": s(sc.batt, { unit_of_measurement: "W" }),
@@ -96,6 +119,7 @@ export const CONFIG = {
   type: "custom:tibber-battery-card",
   name: "Akku Berlin",
   subtitle: "Tibber · Solarbank 2 E1600",
+  price_entity: "sensor.tibber_preise_15min",
   soc_entity: "sensor.solarbank_2_e1600_ac_ladestand",
   capacity_entity: "input_number.tibber_anker_capacity_kwh",
   battery_power_entity: "sensor.solarbank_2_e1600_ac_akkuleistung",

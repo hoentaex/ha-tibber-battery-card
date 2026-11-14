@@ -32,8 +32,8 @@ const LABELS = {
     pv_today_entity: "PV heute (kWh)",
     pv_forecast_today_entity: "PV-Prognose heute (kWh)",
     price_entity: "Preissensor (leer: tibber.get_prices)",
-    cheap_slots: "Ladefenster: Anzahl Viertelstunden",
-    window_start: "Ladefenster ab",
+    cheap_slots: "Ladefenster: günstigste Viertelstunden",
+    window_horizon_slots: "Ladefenster: Horizont in Viertelstunden",
     show_tomorrow: "Morgen-Preise anhängen",
     sections: "Abschnitte",
     animations: "Animationen",
@@ -86,8 +86,8 @@ const LABELS = {
     pv_today_entity: "PV today (kWh)",
     pv_forecast_today_entity: "PV forecast today (kWh)",
     price_entity: "Price sensor (empty: tibber.get_prices)",
-    cheap_slots: "Charging window: number of quarter hours",
-    window_start: "Charging window from",
+    cheap_slots: "Charging window: cheapest quarter hours",
+    window_horizon_slots: "Charging window: horizon in quarter hours",
     show_tomorrow: "Append tomorrow's prices",
     sections: "Sections",
     animations: "Animations",
@@ -179,7 +179,7 @@ export const editorSchema = (lang, { mini = false } = {}) => {
       schema: [
         ent("price_entity", ["sensor"]),
         { name: "cheap_slots", selector: { number: { min: 0, max: 96, step: 1, mode: "box" } } },
-        { name: "window_start", selector: { time: {} } },
+        { name: "window_horizon_slots", selector: { number: { min: 1, max: 192, step: 1, mode: "box" } } },
         { name: "show_tomorrow", selector: { boolean: {} } },
       ],
     },
@@ -258,7 +258,7 @@ const MODE_KEYS = { mode_auto: "auto", mode_force: "force", mode_block: "block" 
 
 // Defaults shown in the form (and dropped again from the YAML when left as they are).
 const formDefaults = (mini) => {
-  const d = { ...DEFAULTS, popup: mini, window_start: "06:00:00" };
+  const d = { ...DEFAULTS, popup: mini };
   delete d.mode_options;
   for (const [k, v] of Object.entries(MODE_KEYS)) d[k] = DEFAULTS.mode_options[v];
   return d;
@@ -270,7 +270,6 @@ export const toFormData = (config, mini = false) => {
   delete data.mode_options;
   for (const [k, v] of Object.entries(MODE_KEYS))
     if (config.mode_options?.[v] != null) data[k] = config.mode_options[v];
-  if (typeof data.window_start === "string" && /^\d{1,2}:\d{2}$/.test(data.window_start)) data.window_start += ":00";
   if (!data.language) data.language = "";
   return data;
 };
@@ -290,7 +289,7 @@ export const fromFormData = (data, mini = false) => {
     if (k === "sections" && Array.isArray(v) && v.length === SECTIONS.length && v.every((s, i) => s === SECTIONS[i]))
       continue;
     if (k in defaults && JSON.stringify(v) === JSON.stringify(defaults[k])) continue;
-    config[k] = k === "window_start" ? String(v).slice(0, 5) : v;
+    config[k] = v;
   }
   if (Object.keys(modes).length) config.mode_options = modes;
   return config;

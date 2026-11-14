@@ -63,13 +63,20 @@ Helfer anlegen: **Einstellungen → Geräte & Dienste → Helfer → Helfer erst
 
 ### Preise
 
-Die Karte braucht **nichts weiter**, wenn die Tibber-Integration eingerichtet ist: Ohne `price_entity` ruft sie
-`tibber.get_prices` selbst auf (heute + morgen), speichert das Ergebnis zwischen und lädt nur bei Tageswechsel
-bzw. ab 13 Uhr einmal pro Viertelstunde nach, bis die Preise für morgen da sind. Bei mehreren Zuhause wählt
-`tibber_home` das richtige (Standard: das erste).
+**Reihenfolge:** Ist `price_entity` gesetzt, liest die Karte die Preise aus dessen Attributen (kein Service-Aufruf).
+Sonst ruft sie `tibber.get_prices` selbst über die Tibber-Integration auf (heute + morgen), speichert das Ergebnis
+zwischen und lädt nur bei Tageswechsel bzw. ab 13 Uhr einmal pro Viertelstunde nach, bis die Preise für morgen da sind.
+Bei mehreren Zuhause wählt `tibber_home` das richtige (Standard: das erste).
 
-Alternativ liest die Karte die Preise aus den Attributen eines Sensors (kein Service-Aufruf). Beispiel für einen
-triggerbasierten Template-Sensor:
+Empfohlen ist ein triggerbasierter Template-Sensor, den auch deine Automationen nutzen können – dann sehen Karte und
+Steuerung garantiert dasselbe Ladefenster:
+
+| Feld | Inhalt |
+|---|---|
+| Zustand | Preis der aktuellen Viertelstunde (EUR/kWh) |
+| `today` / `tomorrow` | Liste `{start_time, price}`, 96 Slots pro Tag (92 / 100 bei Zeitumstellung) |
+| `min_today` / `max_today` / `avg_today` | Tageskennzahlen (sonst rechnet die Karte selbst) |
+| `ladefenster` | Startzeiten der 24 günstigsten der nächsten 48 Viertelstunden |
 
 ```yaml
 template:
@@ -84,25 +91,56 @@ template:
           start: "{{ today_at().isoformat() }}"
           end: "{{ (today_at() + timedelta(days=2)).isoformat() }}"
         response_variable: resp
+      - variables:
+          p: >
+            {% set slots = resp.prices.values() | first | default([]) %}
+            {%- set ns = namespace(today=[], tomorrow=[], next=[], now=none) %}
+            {%- set d1 = today_at() + timedelta(days=1) %}
+            {%- for s in slots %}
+              {%- set t = as_datetime(s.start_time) %}
+              {%- if t < d1 %}{% set ns.today = ns.today + [s] %}{% else %}{% set ns.tomorrow = ns.tomorrow + [s] %}{% endif %}
+              {%- if t > now() - timedelta(minutes=15) %}{% set ns.next = ns.next + [s] %}{% endif %}
+              {%- if t <= now() %}{% set ns.now = s.price %}{% endif %}
+            {%- endfor %}
+            {%- set prices = ns.today | map(attribute='price') | list %}
+            {{ {
+              'now': ns.now,
+              'today': ns.today,
+              'tomorrow': ns.tomorrow,
+              'min': prices | min if prices else none,
+              'max': prices | max if prices else none,
+              'avg': (prices | sum / prices | count) | round(4) if prices else none,
+              'ladefenster': (ns.next[:48] | sort(attribute='price'))[:24]
+                | sort(attribute='start_time') | map(attribute='start_time') | list,
+            } }}
     sensor:
       - name: Tibber Preise 15min
         unique_id: tibber_preise_15min
-        state: "{{ resp.prices.values() | first | count }}"
+        unit_of_measurement: EUR/kWh
+        state: "{{ p.now }}"
         attributes:
-          prices: "{{ resp.prices.values() | first }}"
+          today: "{{ p.today }}"
+          tomorrow: "{{ p.tomorrow }}"
+          min_today: "{{ p.min }}"
+          max_today: "{{ p.max }}"
+          avg_today: "{{ p.avg }}"
+          ladefenster: "{{ p.ladefenster }}"
 ```
 
 ```yaml
 price_entity: sensor.tibber_preise_15min
-price_today_attribute: prices   # heute und morgen in einer Liste – die Karte teilt sie nach Uhrzeit auf
 ```
 
-Feldnamen sind einstellbar (`price_time_key`, `price_value_key`), damit auch andere Quellen (Nordpool o. Ä.) passen.
-Preise unter 5 werden als €/kWh gelesen, alles darüber als ct/kWh.
+Feldnamen sind einstellbar (`price_time_key`, `price_value_key`, `price_today_attribute`, `price_tomorrow_attribute`),
+damit auch andere Quellen (Nordpool o. Ä.) passen. Preise unter 5 werden als €/kWh gelesen, alles darüber als ct/kWh.
 
-**Ladefenster:** die `cheap_slots` günstigsten Viertelstunden ab `window_start` (Standard 24 Slots = 6 h ab 06:00),
-als Blöcke hinter der Kurve. Liefert dein Sensor das Fenster schon selbst (Liste von Startzeiten), nimm
-`window_attribute: ladefenster` – dann rechnet die Karte nicht selbst.
+**Ladefenster – ein mitlaufendes Fenster wie in der Steuerung:** die `cheap_slots` günstigsten (Standard 24) der
+nächsten `window_horizon_slots` Viertelstunden (Standard 48) ab dem aktuellen Slot, also „6 h aus den nächsten 12 h“.
+Es läuft mit der Uhr mit und reicht über Mitternacht in den Folgetag, sobald die Morgenpreise da sind; fehlen sie,
+nimmt die Karte die günstigsten `min(24, verfügbare)`. Hat der Preissensor ein Attribut `ladefenster` (Liste von
+Startzeiten, Name über `window_attribute` änderbar), übernimmt die Karte genau diese Slots und rechnet nicht selbst.
+Gezeichnet wird es als halbtransparente Blöcke über die volle Diagrammhöhe; Blöcke in den Folgetag erscheinen nur
+mit `show_tomorrow: true`. Der Chip „Ladefenster ja/nein“ zeigt, ob der aktuelle Slot im Fenster liegt.
 
 > Tipp: Große Attribute nicht in der Datenbank speichern – `recorder: exclude: entities: [sensor.tibber_preise_15min]`.
 
@@ -165,14 +203,15 @@ pv_forecast_today_entity: sensor.energy_production_today
 | `mode_entity` | Modus-Helfer (`input_select`) | – |
 | `mode_options` | Optionsnamen des Helfers | `{auto: auto, force: erzwingen, block: sperren}` |
 | `target_soc_entity` | Ziel-SoC (`input_number`) | – |
-| `deficit_entity`, `pv_block_entity`, `window_entity`, `forecast_factor_entity` | Chips „Warum lädt er (nicht)?“ | – |
+| `deficit_entity`, `pv_block_entity`, `window_entity`, `forecast_factor_entity` | Chips „Warum lädt er (nicht)?“ (`window_entity` nur, wenn es kein Preisfenster gibt) | – |
 | `savings_today_entity`, `grid_kwh_today_entity`, `pv_today_entity`, `pv_forecast_today_entity` | Fußzeile | – |
 | `price_entity` | Preise aus Attributen statt `tibber.get_prices` | – |
 | `price_today_attribute`, `price_tomorrow_attribute` | Attributnamen | `today`, `tomorrow` |
 | `price_time_key`, `price_value_key` | Feldnamen je Eintrag | `start_time`, `price` |
-| `window_attribute` | fertiges Ladefenster aus dem Sensor | – |
+| `window_attribute` | Attribut mit fertigem Ladefenster im Preissensor | `ladefenster` |
 | `tibber_home` | Zuhause bei `tibber.get_prices` | erstes |
-| `cheap_slots`, `window_start` | Ladefenster selbst berechnen | `24`, `06:00` |
+| `cheap_slots` | Ladefenster: Anzahl günstigster Viertelstunden | `24` |
+| `window_horizon_slots` | Ladefenster: Horizont in Viertelstunden ab jetzt | `48` |
 | `show_tomorrow` | Morgen-Preise anhängen, sobald da | `false` |
 | `sections` | Reihenfolge / Auswahl: `header`, `battery`, `price`, `reasons`, `controls`, `footer` | alle |
 | `animations` | Flussanimation (respektiert `prefers-reduced-motion`) | `true` |
@@ -229,6 +268,10 @@ but usable with any battery whose values exist as Home Assistant entities: state
 
 **The card contains no control logic.** It only shows states and sets the mode and target SoC helpers; your own
 automations decide when to charge from the grid.
+
+**Charging window:** a rolling window like the HA control logic: the `cheap_slots` cheapest (24) of the next
+`window_horizon_slots` quarter hours (48) from the current slot, running past midnight once tomorrow's prices are
+known. A `ladefenster` attribute on the price sensor (`window_attribute`) is used as is.
 
 **You need:** Home Assistant 2024.8+, a state-of-charge sensor (the only required entity), and for prices either the
 [Tibber integration](https://www.home-assistant.io/integrations/tibber/) (the card calls `tibber.get_prices` itself and

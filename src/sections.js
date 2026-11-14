@@ -263,8 +263,7 @@ export const price = (v) => {
   const levelColor = { cheap: "var(--tb-grid)", mid: "var(--secondary-text-color)", expensive: "var(--tb-expensive)" }[
     level
   ];
-  const hours = (v.windowCount * 15) / 60;
-  const hoursTxt = Number.isInteger(hours) ? String(hours) : fmtNum(hours, 1, lang);
+  const windowShown = prices.blocks.some((b) => b.to > prices.from && b.from < prices.to);
   const days = prices.days;
   const axis =
     days === 1 ? ["0", "6", "12", "18", `24 ${t("hours_suffix")}`] : ["0", "12", "24", "12", `24 ${t("hours_suffix")}`];
@@ -298,7 +297,7 @@ export const price = (v) => {
       </div>
       <div class="axis" aria-hidden="true">${axis.map((a) => `<span>${a}</span>`).join("")}</div>
       <div class="legend">
-        ${prices.blocks.length ? `<span><span class="lg-win"></span>${esc(t("legend_window", { h: hoursTxt }))}</span>` : ""}
+        ${windowShown ? `<span><span class="lg-win"></span>${esc(t("legend_window"))}</span>` : ""}
         <span><span class="lg-now"></span>${esc(t("legend_now"))}</span>
         <span><span class="lg-fc"></span>${esc(t("legend_forecast"))}</span>
       </div>
@@ -328,13 +327,14 @@ export const reasons = (v) => {
       e: config.pv_block_entity,
     });
   }
-  if (ok(config.window_entity)) {
-    const on = v.bool(config.window_entity);
+  // Charging window chip: the current slot in the price window, else the configured entity.
+  if (v.prices.inWindow != null || ok(config.window_entity)) {
+    const on = v.prices.inWindow ?? v.bool(config.window_entity);
     chips.push({
       k: t("window"),
       v: on ? t("yes") : t("no"),
       c: on ? "var(--tb-grid)" : "var(--secondary-text-color)",
-      e: config.window_entity,
+      e: config.window_entity || config.price_entity,
     });
   }
   if (ok(config.forecast_factor_entity)) {

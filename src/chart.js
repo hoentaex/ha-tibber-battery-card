@@ -63,7 +63,7 @@ export const priceChart = ({ slots, from, to, now, blocks, label }) => {
       <path class="grid" d="${grid}"></path>
       ${midnight != null ? `<path class="grid day" d="M${midnight.toFixed(1)} 0 V${CHART_H}"></path>` : ""}
       <path d="${area(past)}" fill="url(#${id}f)"></path>
-      <path d="${area(future)}" fill="url(#${id}f)" opacity=".5"></path>
+      <path d="${area(future)}" fill="url(#${id}f)" opacity=".45"></path>
       <path class="line" d="${past.length > 1 ? path(past) : ""}" stroke="url(#${id}l)"></path>
       <path class="line future" d="${future.length > 1 ? path(future) : ""}" stroke="url(#${id}l)"></path>
       ${now >= from && now < to ? `<path class="now" d="M${nowX.toFixed(1)} 0 V${BOTTOM + 4}"></path>` : ""}

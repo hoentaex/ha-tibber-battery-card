@@ -11,7 +11,8 @@ export const DEFAULTS = {
   popup: false,
   show_tomorrow: false,
   cheap_slots: 24,
-  window_start: "06:00",
+  window_horizon_slots: 48,
+  window_attribute: "ladefenster",
   price_today_attribute: "today",
   price_tomorrow_attribute: "tomorrow",
   price_time_key: "start_time",
@@ -45,7 +46,7 @@ export const STRINGS = {
     avg: "Ø",
     max: "Max",
     hours_suffix: "Uhr",
-    legend_window: "günstigste {h} h (Ladefenster)",
+    legend_window: "Ladefenster",
     legend_now: "jetzt",
     legend_forecast: "Prognose",
     no_prices: "Keine Preise verfügbar",
@@ -109,7 +110,7 @@ export const STRINGS = {
     avg: "Avg",
     max: "Max",
     hours_suffix: "h",
-    legend_window: "cheapest {h} h (charging window)",
+    legend_window: "Charging window",
     legend_now: "now",
     legend_forecast: "upcoming",
     no_prices: "No prices available",
@@ -312,11 +313,22 @@ export const pricesFromEntity = (hass, config) => {
   const vk = config.price_value_key || DEFAULTS.price_value_key;
   const today = normalizeSlots(a[config.price_today_attribute || DEFAULTS.price_today_attribute], tk, vk);
   const tomorrow = normalizeSlots(a[config.price_tomorrow_attribute || DEFAULTS.price_tomorrow_attribute], tk, vk);
-  const winRaw = config.window_attribute ? a[config.window_attribute] : undefined;
+  const winRaw = a[config.window_attribute ?? DEFAULTS.window_attribute];
   const window = Array.isArray(winRaw)
     ? winRaw.map((x) => (typeof x === "object" ? Date.parse(x?.[tk]) : Date.parse(x))).filter(Number.isFinite)
     : undefined;
-  return { today, tomorrow, window };
+  // Day figures from the sensor when it has them, in the unit the slots were converted to.
+  const rawToday = a[config.price_today_attribute || DEFAULTS.price_today_attribute];
+  const rawMax = Array.isArray(rawToday)
+    ? Math.max(0, ...rawToday.map((e) => Math.abs(Number.parseFloat(e?.[vk])) || 0))
+    : 0;
+  const f = rawMax < 5 ? 100 : 1;
+  const num = (k) => (Number.isFinite(Number.parseFloat(a[k])) ? Number.parseFloat(a[k]) * f : undefined);
+  const stats =
+    num("min_today") != null && num("max_today") != null && num("avg_today") != null
+      ? { min: num("min_today"), max: num("max_today"), avg: num("avg_today") }
+      : undefined;
+  return { today, tomorrow, window, stats };
 };
 
 // Splits one list of slots into today / tomorrow relative to `now`.
@@ -364,7 +376,7 @@ export class PriceSource {
       if (p) {
         const all = [...p.today, ...p.tomorrow];
         // Rolling sensors (yesterday/today) are tolerated: slots are re-split on the clock.
-        return { ...splitDays(all, now), window: p.window, source: "entity" };
+        return { ...splitDays(all, now), window: p.window, stats: p.stats, source: "entity" };
       }
       return { today: [], tomorrow: [], source: "entity", missing: true };
     }
@@ -428,13 +440,17 @@ export const slotAt = (slots, now) => {
   return slots.find((s) => s.t === q) ?? found;
 };
 
-// The N cheapest slots of the day from `window_start` on → Set of start times.
-export const computeWindow = (slots, { count = 24, start = "06:00" } = {}) => {
-  if (!slots.length || count <= 0) return new Set();
-  const from = atTime(startOfDay(slots[0].t), start);
+// Rolling charging window, the same rule as the Home Assistant side: the `count` cheapest of the next
+// `horizon` quarter hours from the current slot on (24 of 48 = 6 h out of the next 12 h). It runs past
+// midnight once tomorrow's prices are there; with fewer slots left it takes min(count, available).
+// Returns a Set of start times.
+export const computeWindow = (slots, now, { count = 24, horizon = 48 } = {}) => {
+  if (!slots.length || count <= 0 || horizon <= 0) return new Set();
+  const cur = slotAt(slots, now);
+  const start = cur ? slots.indexOf(cur) : slots.findIndex((s) => s.t > now);
+  if (start < 0) return new Set();
   const pick = slots
-    .filter((s) => s.t >= from)
-    .slice()
+    .slice(start, start + horizon)
     .sort((a, b) => a.p - b.p || a.t - b.t)
     .slice(0, count);
   return new Set(pick.map((s) => s.t));
