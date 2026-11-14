@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.0 (unreleased)
+
+- `show_history` (switch in the editor): the 24 h charts of the detail view (state of charge, PV and grid charging)
+  also in the normal card, below the daily totals
+
 ## 0.2.0 (2026-11-14)
 
 - Charging window is now a rolling window, like the Home Assistant control logic: the `cheap_slots` (24) cheapest

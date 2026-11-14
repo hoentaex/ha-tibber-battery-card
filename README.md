@@ -215,6 +215,7 @@ pv_forecast_today_entity: sensor.energy_production_today
 | `show_tomorrow` | Morgen-Preise anhängen, sobald da | `false` |
 | `sections` | Reihenfolge / Auswahl: `header`, `battery`, `price`, `reasons`, `controls`, `footer` | alle |
 | `animations` | Flussanimation (respektiert `prefers-reduced-motion`) | `true` |
+| `show_history` | 24-h-Verlauf (Ladestand, PV und Netzladung) auch in der normalen Karte, unter der Tagesbilanz | `false` |
 | `popup` | Detailansicht als Dialog (Hauptkarte: Button im Kopf; Mini-Karte: `false` = an Ort und Stelle aufklappen) | Hauptkarte `false`, Mini-Karte `true` |
 | `language` | `de` / `en` | Sprache von Home Assistant |
 
@@ -228,7 +229,8 @@ Einstufung, PV-Leistung und Ziel-SoC. Der Button rechts öffnet die **Detailansi
 Karte mit großem Preisdiagramm und dem **Verlauf der letzten 24 Stunden** (Ladestand, PV-Leistung, Netzladung aus der
 Home-Assistant-Historie). Mit `popup: false` klappt die Mini-Karte stattdessen die ganze Karte an Ort und Stelle auf.
 
-Die Hauptkarte bekommt mit `popup: true` denselben Detail-Button im Kopf.
+Die Hauptkarte bekommt mit `popup: true` denselben Detail-Button im Kopf. Mit `show_history: true` zeigt sie die
+beiden Verlaufsgrafiken auch ohne Popup direkt unter der Tagesbilanz.
 
 ```yaml
 type: custom:tibber-battery-mini-card
@@ -294,7 +296,8 @@ soc_entity: sensor.my_battery_soc
 
 **Mini card:** `custom:tibber-battery-mini-card` takes the same options and shows one row (ring, name, status, price,
 PV, target); its button opens the detail dialog with a large price chart and the last 24 hours of SoC, PV and grid
-charging (`popup: false` expands the full card in place instead). `popup: true` adds the same button to the main card.
+charging (`popup: false` expands the full card in place instead). `popup: true` adds the same button to the main card; `show_history: true` shows the two history charts in the
+card itself.
 
 Mode option names are configurable through `mode_options` (`{auto: auto, force: force, block: block}` for English helpers).
 

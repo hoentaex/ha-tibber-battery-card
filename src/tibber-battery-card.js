@@ -110,7 +110,7 @@ export class TibberBatteryCard extends HTMLElement {
   getCardSize() {
     const s = this._config?.sections || SECTIONS;
     const size = { header: 1, battery: 3, price: 4, reasons: 1, controls: 2, footer: 1 };
-    return s.reduce((n, k) => n + (size[k] || 0), 0);
+    return s.reduce((n, k) => n + (size[k] || 0), 0) + (this._config?.show_history ? 4 : 0);
   }
 
   getGridOptions() {
@@ -159,7 +159,7 @@ export class TibberBatteryCard extends HTMLElement {
       dragTarget: this._dragTarget,
       popupButton: !!config.popup && !config._detail,
       closeButton: !!config._detail,
-      history: config._detail ? this._historyView(now) : undefined,
+      history: config._detail || config.show_history ? this._historyView(now) : undefined,
       inline: config.popup === false,
       expanded: this._expanded,
       has: (id) => !!stateOf(hass, id),
@@ -230,7 +230,9 @@ export class TibberBatteryCard extends HTMLElement {
 
   // Header and sections of the full card.
   _content(v, withHeader = true) {
-    const order = [...this._config.sections, ...(this._config._detail ? ["history"] : [])];
+    // The 24 h charts: always in the detail view, in the normal view with show_history.
+    const withHistory = this._config._detail || this._config.show_history;
+    const order = [...this._config.sections, ...(withHistory ? ["history"] : [])];
     const head = withHeader && order.includes("header") ? RENDERERS.header(v) : "";
     const body = order
       .filter((s) => s !== "header")

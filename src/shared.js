@@ -9,6 +9,7 @@ export const DEFAULTS = {
   sections: SECTIONS,
   animations: true,
   popup: false,
+  show_history: false,
   show_tomorrow: false,
   cheap_slots: 24,
   window_horizon_slots: 48,

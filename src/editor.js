@@ -38,6 +38,7 @@ const LABELS = {
     sections: "Abschnitte",
     animations: "Animationen",
     popup: "Detailansicht als Popup",
+    show_history: "24-h-Verlauf auch in der Karte",
     language: "Sprache",
     lang_auto: "Automatisch",
     mode_auto: "Option für Auto",
@@ -92,6 +93,7 @@ const LABELS = {
     sections: "Sections",
     animations: "Animations",
     popup: "Detail view as a popup",
+    show_history: "24 h history in the card too",
     language: "Language",
     lang_auto: "Automatic",
     mode_auto: "Option for Auto",
@@ -209,6 +211,7 @@ export const editorSchema = (lang, { mini = false } = {}) => {
           schema: [
             { name: "animations", selector: { boolean: {} } },
             { name: "popup", selector: { boolean: {} } },
+            { name: "show_history", selector: { boolean: {} } },
           ],
         },
         {
