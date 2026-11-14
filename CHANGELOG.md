@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0 (unreleased)
+## 0.2.0 (2026-11-14)
 
 - Charging window is now a rolling window, like the Home Assistant control logic: the `cheap_slots` (24) cheapest
   of the next `window_horizon_slots` (48) quarter hours from the current slot, running past midnight once
