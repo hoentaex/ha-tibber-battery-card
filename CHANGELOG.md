@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.0 (unreleased)
+## 0.3.0 (2026-11-14)
 
 - `show_history` (switch in the editor): the 24 h charts of the detail view (state of charge, PV and grid charging)
   also in the normal card, below the daily totals
