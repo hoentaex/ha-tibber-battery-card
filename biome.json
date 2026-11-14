@@ -1,0 +1,13 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.6.4/schema.json",
+  "files": { "includes": ["**/*.js", "**/*.mjs", "!**/dist", "!**/node_modules"] },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "suspicious": { "noAssignInExpressions": "off" },
+      "style": { "noParameterAssign": "off" }
+    }
+  },
+  "formatter": { "enabled": true, "indentStyle": "space", "lineWidth": 120 },
+  "assist": { "enabled": false }
+}

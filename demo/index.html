@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tibber Battery Card – Demo</title>
+    <style>
+      .light {
+        --primary-text-color: #212121; --secondary-text-color: #6b6b6b; --card-background-color: #fff; --ha-card-background: #fff;
+        --secondary-background-color: #f1f2f4; --divider-color: rgba(0,0,0,.12); --primary-color: #03a9f4; background: #f4f5f7;
+      }
+      .dark {
+        --primary-text-color: #e8e8f0; --secondary-text-color: #a0a3b8; --card-background-color: #1c1c28; --ha-card-background: #1c1c28;
+        --secondary-background-color: #262636; --divider-color: #2e3044; --primary-color: #5aa9ff; background: #111118;
+      }
+      body { margin: 0; font-family: Roboto, Inter, system-ui, sans-serif; }
+      .bar { padding: 10px 16px; display: flex; gap: 12px; align-items: center; font-size: 14px; background: #fff; border-bottom: 1px solid #ddd; }
+      .cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .col { padding: 20px; color: var(--primary-text-color); display: flex; flex-direction: column; gap: 16px; align-items: center; }
+      .col > * { width: min(100%, 480px); }
+      @media (max-width: 900px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+    </style>
+  </head>
+  <body>
+    <div class="bar">
+      <label>Szenario
+        <select id="scenario">
+          <option value="pv">PV lädt</option><option value="grid">Netz lädt</option>
+          <option value="home">Akku versorgt Haus</option><option value="blocked">Gesperrt</option>
+        </select>
+      </label>
+      <label>Sprache <select id="lang"><option>de</option><option>en</option></select></label>
+      <label><input type="checkbox" id="minimal" /> nur soc_entity</label>
+    </div>
+    <div class="cols">
+      <div class="col light" id="light"></div>
+      <div class="col dark" id="dark"></div>
+    </div>
+    <script type="module">
+      import { CONFIG, makeHass } from "./mock.js";
+      // Stand-in for Home Assistant's ha-card.
+      customElements.define(
+        "ha-card",
+        class extends HTMLElement {
+          constructor() {
+            super();
+            this.attachShadow({ mode: "open" }).innerHTML =
+              "<style>:host{display:block;background:var(--ha-card-background);border-radius:12px;border:1px solid var(--divider-color);color:var(--primary-text-color)}</style><slot></slot>";
+          }
+        },
+      );
+      await import("../dist/ha-tibber-battery-card.js");
+      const params = new URLSearchParams(location.search);
+      const $ = (id) => document.getElementById(id);
+      $("scenario").value = params.get("scenario") || "pv";
+      $("lang").value = params.get("lang") || "de";
+      $("minimal").checked = params.has("minimal");
+      let cards = [];
+      const build = () => {
+        const minimal = $("minimal").checked;
+        const config = minimal ? { type: CONFIG.type, soc_entity: CONFIG.soc_entity } : CONFIG;
+        const hass = makeHass($("scenario").value, {
+          language: $("lang").value,
+          onChange: (h) => cards.forEach((c) => (c.hass = h)),
+        });
+        if (minimal) hass.services = {};
+        cards = ["light", "dark"].flatMap((id) => {
+          const el = document.createElement("tibber-battery-card");
+          el.setConfig({ ...config, popup: true });
+          el.hass = hass;
+          const miniEl = document.createElement("tibber-battery-mini-card");
+          miniEl.setConfig({ ...config, type: "custom:tibber-battery-mini-card" });
+          miniEl.hass = hass;
+          const inlineEl = document.createElement("tibber-battery-mini-card");
+          inlineEl.setConfig({ ...config, type: "custom:tibber-battery-mini-card", popup: false });
+          inlineEl.hass = hass;
+          $(id).replaceChildren(miniEl, inlineEl, el);
+          return [el, miniEl, inlineEl];
+        });
+      };
+      for (const id of ["scenario", "lang", "minimal"]) $(id).addEventListener("change", build);
+      build();
+    </script>
+  </body>
+</html>

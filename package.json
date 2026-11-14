@@ -1,0 +1,21 @@
+{
+  "name": "ha-tibber-battery-card",
+  "version": "0.1.0",
+  "description": "Lovelace card for Home Assistant: home battery with a dynamic electricity tariff (Tibber), 15-minute prices, charging window and grid-charge mode.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "lint": "biome check src test scripts",
+    "check": "biome check src test scripts && node scripts/build.mjs && node --check dist/ha-tibber-battery-card.js",
+    "test": "node --test test/*.test.mjs",
+    "demo": "node scripts/build.mjs && node scripts/serve.mjs",
+    "screenshots": "node scripts/build.mjs && node scripts/screenshots.mjs"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@biomejs/biome": "2.6.4",
+    "esbuild": "0.25.12",
+    "playwright": "1.64.1"
+  }
+}
