@@ -4,6 +4,11 @@ import { flowRow, historyChart, priceChart, socRing } from "./chart.js";
 import { esc, fmtNum, fmtTime, fmtW, STATUS_COLOR } from "./shared.js";
 
 export const ICONS = {
+  tower:
+    "M8.28,5.45L6.5,4.55L7.76,2H16.23L17.5,4.55L15.72,5.44L15,4H9L8.28,5.45M18.62,8H14.09L13.3,5H10.7L9.91,8H5.38L4.1,10.55L5.89,11.44L6.62,10H17.38L18.1,11.45L19.89,10.56L18.62,8M17.77,22H15.7L15.46,21.1L12,15.9L8.53,21.1L8.3,22H6.23L9.12,11H11.19L10.83,12.35L12,14.1L13.16,12.35L12.81,11H14.88L17.77,22M11.4,15L10.5,13.65L9.32,18.13L11.4,15M14.68,18.12L13.5,13.64L12.6,15L14.68,18.12Z",
+  help: "M11,18H13V16H11V18M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20M12,6A4,4 0 0,0 8,10H10A2,2 0 0,1 12,8A2,2 0 0,1 14,10C14,12 11,11.75 11,15H13C13,12.75 16,12.5 16,10A4,4 0 0,0 12,6Z",
+  chart: "M16,11.78L20.24,4.45L21.97,5.45L16.74,14.5L10.23,10.75L5.46,19H22V21H2V3H4V17.54L9.5,8L16,11.78Z",
+  euro: "M15,18.5C12.49,18.5 10.32,17.08 9.24,15H15L16,13H8.58C8.53,12.67 8.5,12.34 8.5,12C8.5,11.66 8.53,11.33 8.58,11H15L16,9H9.24C10.32,6.92 12.5,5.5 15,5.5C16.61,5.5 18.09,6.09 19.23,7.07L21,5.3C19.41,3.87 17.3,3 15,3C11.08,3 7.76,5.51 6.52,9H3L2,11H6.06C6.02,11.33 6,11.66 6,12C6,12.34 6.02,12.67 6.06,13H3L2,15H6.52C7.76,18.5 11.08,21 15,21C17.31,21 19.41,20.13 21,18.7L19.22,16.92C18.09,17.91 16.62,18.5 15,18.5Z",
   battery:
     "M16.67,4H15V2H9V4H7.33A1.33,1.33 0 0,0 6,5.33V20.67C6,21.4 6.6,22 7.33,22H16.67A1.33,1.33 0 0,0 18,20.67V5.33C18,4.6 17.4,4 16.67,4M11,20V14.5H9L13,7V12.5H15",
   chevron: "M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z",
@@ -12,6 +17,10 @@ export const ICONS = {
   close:
     "M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z",
 };
+
+// Section heading with its icon in front, as in the Proxmox card.
+const title = (icon, text, attrs = "") =>
+  `<div class="section-title"${attrs}>${svgIcon(ICONS[icon])}<span>${esc(text)}</span></div>`;
 
 export const svgIcon = (path, cls = "icon") =>
   `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true"><path d="${path}"></path></svg>`;
@@ -40,7 +49,7 @@ export const STYLE = `
   .chip > span:last-child { overflow: hidden; text-overflow: ellipsis; }
   .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--c); flex: none; display: inline-block; }
   .content { padding: 4px 16px 16px; display: flex; flex-direction: column; gap: 20px; }
-  .section-title { font-size: 13px; font-weight: 500; text-transform: uppercase; letter-spacing: .04em;
+  .section-title { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; text-transform: uppercase; letter-spacing: .04em;
                    color: var(--secondary-text-color); margin-bottom: 10px; }
 
   /* Battery: SoC ring and energy flows */
@@ -74,7 +83,8 @@ export const STYLE = `
   /* Price */
   .panel { border-radius: 12px; padding: 14px 16px; background: var(--tb-soft); display: flex; flex-direction: column; gap: 10px; }
   .price-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-  .kicker { font-size: 12px; color: var(--secondary-text-color); text-transform: uppercase; letter-spacing: .04em; }
+  .section-title .icon, .kicker .icon { width: 16px; height: 16px; }
+  .kicker { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--secondary-text-color); text-transform: uppercase; letter-spacing: .04em; }
   .price-now { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin-top: 4px; }
   .price-now .big { font-size: 30px; font-weight: 600; line-height: 1.1; }
   .price-now .unit { font-size: 14px; color: var(--secondary-text-color); }
@@ -256,7 +266,7 @@ export const price = (v) => {
   const { t, lang, prices } = v;
   if (!prices.slots.length) {
     if (!prices.expected) return "";
-    return `<div class="panel"><div class="kicker">${esc(t("price_now"))}</div>
+    return `<div class="panel"><div class="kicker">${svgIcon(ICONS.euro)}<span>${esc(t("price_now"))}</span></div>
       <div class="empty">${esc(prices.loading ? t("loading_prices") : t("no_prices"))}</div></div>`;
   }
   const { now, stats, current, level } = prices;
@@ -271,7 +281,7 @@ export const price = (v) => {
     <div class="panel">
       <div class="price-head">
         <div>
-          <div class="kicker">${esc(t("price_now"))} · ${fmtTime(current?.t ?? now)}</div>
+          <div class="kicker">${svgIcon(ICONS.euro)}<span>${esc(t("price_now"))} · ${fmtTime(current?.t ?? now)}</span></div>
           <div class="price-now">
             <span class="big">${fmtNum(current?.p, 1, lang)}</span><span class="unit">${esc(t("per_kwh"))}</span>
             ${level ? `<span class="chip ink" style="--c:${levelColor}">${esc(t(level))}</span>` : ""}
@@ -357,7 +367,7 @@ export const reasons = (v) => {
   const charging = v.status === "grid" || v.status === "grid_forced";
   return `
     <div>
-      <div class="section-title">${esc(charging ? t("why_grid") : t("why_not_grid"))}</div>
+      ${title("help", charging ? t("why_grid") : t("why_not_grid"))}
       <div class="chips">
         ${chips
           .map(
@@ -383,7 +393,7 @@ export const controls = (v) => {
   const target = v.dragTarget ?? live.target;
   return `
     <div>
-      <div class="section-title" id="mode-label">${esc(t("grid_charging"))}</div>
+      ${title("tower", t("grid_charging"), ' id="mode-label"')}
       ${
         hasMode
           ? `<div class="seg" role="group" aria-labelledby="mode-label">
@@ -481,18 +491,18 @@ export const history = (v) => {
   if (!h) return "";
   const { t, lang } = v;
   if (h.loading && !h.soc)
-    return `<div><div class="section-title">${esc(t("history"))}</div><div class="empty">${esc(t("loading_history"))}</div></div>`;
+    return `<div>${title("chart", t("history"))}<div class="empty">${esc(t("loading_history"))}</div></div>`;
   const hasSoc = h.soc?.length > 0;
   const hasPower = h.pv?.length > 0 || h.grid?.length > 0;
   if (!hasSoc && !hasPower)
-    return `<div><div class="section-title">${esc(t("history"))}</div><div class="empty">${esc(t("no_history"))}</div></div>`;
+    return `<div>${title("chart", t("history"))}<div class="empty">${esc(t("no_history"))}</div></div>`;
   const pmax = Math.max(100, ...(h.pv || []).map((p) => p.v), ...(h.grid || []).map((p) => p.v));
   const ticks = [0, 6, 12, 18, 24].map((i) => fmtTime(h.from + i * 3600000));
   const axis = `<div class="axis" aria-hidden="true">${ticks.map((x) => `<span>${x}</span>`).join("")}</div>`;
   const last = (arr) => arr?.[arr.length - 1]?.v;
   return `
     <div>
-      <div class="section-title">${esc(t("history"))}</div>
+      ${title("chart", t("history"))}
       ${
         hasSoc
           ? `<div class="hist">
