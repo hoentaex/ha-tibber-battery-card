@@ -4,6 +4,8 @@
 
 - `show_history` (switch in the editor): the 24 h charts of the detail view (state of charge, PV and grid charging)
   also in the normal card, below the daily totals
+- The "Last 24 hours" heading folds the section; `history_collapsed` (checkbox in the editor) starts it folded,
+  and the history is only fetched once it is opened
 - Icons in front of the section headings (price, reasons, grid charging, history), as in the Proxmox card
 
 ## 0.2.0 (2026-11-14)

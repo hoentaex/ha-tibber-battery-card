@@ -132,6 +132,7 @@ export class TibberBatteryCard extends HTMLElement {
       this._hist?.fetchedAt,
       this._hist?.loading,
       this._expanded,
+      this._histOpen,
       ...parts,
     ].join(";");
   }
@@ -159,7 +160,7 @@ export class TibberBatteryCard extends HTMLElement {
       dragTarget: this._dragTarget,
       popupButton: !!config.popup && !config._detail,
       closeButton: !!config._detail,
-      history: config._detail || config.show_history ? this._historyView(now) : undefined,
+      history: config._detail || config.show_history ? this._historySection(now) : undefined,
       inline: config.popup === false,
       expanded: this._expanded,
       has: (id) => !!stateOf(hass, id),
@@ -221,7 +222,13 @@ export class TibberBatteryCard extends HTMLElement {
     this._lastView = v;
     const html = this._content(v);
     const focus = this.shadowRoot.activeElement;
-    const focusKey = focus?.dataset?.mode ? `[data-mode="${focus.dataset.mode}"]` : focus?.id ? `#${focus.id}` : "";
+    const focusKey = focus?.hasAttribute?.("data-fold")
+      ? "[data-fold]"
+      : focus?.dataset?.mode
+        ? `[data-mode="${focus.dataset.mode}"]`
+        : focus?.id
+          ? `#${focus.id}`
+          : "";
     this.shadowRoot.innerHTML = `<style>${STYLE}</style><ha-card class="${this._config._detail ? "detail" : ""}">${html}</ha-card>`;
     if (this._dialog) this._dialog.hass = this._hass;
     if (focusKey) this.shadowRoot.querySelector(focusKey)?.focus();
@@ -247,6 +254,14 @@ export class TibberBatteryCard extends HTMLElement {
       .filter(Boolean)
       .join("");
     return `${head}<div class="content"${head || !withHeader ? "" : ' style="padding-top:16px"'}>${body}</div>`;
+  }
+
+  // The history section: open or folded (history_collapsed sets the start, the heading toggles it).
+  _historySection(now) {
+    const open = this._histOpen ?? !this._config.history_collapsed;
+    if (!open) return { open: false };
+    const h = this._historyView(now);
+    return h ? { ...h, open: true } : undefined;
   }
 
   // 24 h history for the detail view, fetched on open and refreshed every 5 minutes.
@@ -303,6 +318,11 @@ export class TibberBatteryCard extends HTMLElement {
       const open = e.target.closest?.("[data-open]");
       if (open) {
         this._openPopup(open);
+        return;
+      }
+      if (e.target.closest?.("[data-fold]")) {
+        this._histOpen = !(this._histOpen ?? !this._config.history_collapsed);
+        this._render(true);
         return;
       }
       if (e.target.closest?.("[data-toggle]")) {

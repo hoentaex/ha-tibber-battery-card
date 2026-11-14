@@ -84,6 +84,14 @@ export const STYLE = `
   .panel { border-radius: 12px; padding: 14px 16px; background: var(--tb-soft); display: flex; flex-direction: column; gap: 10px; }
   .price-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
   .section-title .icon, .kicker .icon { width: 16px; height: 16px; }
+  .section-title.fold { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 6px; width: 100%; min-height: 44px;
+                        margin: -12px 0 -2px; cursor: pointer; user-select: none; font-size: 13px; font-weight: 500; text-transform: uppercase;
+                        letter-spacing: .04em; color: var(--secondary-text-color); border-radius: 8px; }
+  .section-title.fold:hover { color: var(--primary-text-color); }
+  .section-title.fold:focus-visible { outline: 2px solid var(--primary-color, #03a9f4); outline-offset: 2px; }
+  .section-title.fold .chevron { margin-left: auto; transition: transform .2s ease; }
+  .section-title.fold.closed { margin-bottom: -12px; }
+  .section-title.fold.closed .chevron { transform: rotate(-90deg); }
   .kicker { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--secondary-text-color); text-transform: uppercase; letter-spacing: .04em; }
   .price-now { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin-top: 4px; }
   .price-now .big { font-size: 30px; font-weight: 600; line-height: 1.1; }
@@ -490,19 +498,21 @@ export const history = (v) => {
   const h = v.history;
   if (!h) return "";
   const { t, lang } = v;
-  if (h.loading && !h.soc)
-    return `<div>${title("chart", t("history"))}<div class="empty">${esc(t("loading_history"))}</div></div>`;
+  // The heading is a button that folds the section; closed, nothing is fetched.
+  const head = `<button type="button" class="section-title fold${h.open ? "" : " closed"}" data-fold aria-expanded="${h.open}">
+      ${svgIcon(ICONS.chart)}<span>${esc(t("history"))}</span>${svgIcon(ICONS.chevron, "icon chevron")}</button>`;
+  if (!h.open) return `<div>${head}</div>`;
+  if (h.loading && !h.soc) return `<div>${head}<div class="empty">${esc(t("loading_history"))}</div></div>`;
   const hasSoc = h.soc?.length > 0;
   const hasPower = h.pv?.length > 0 || h.grid?.length > 0;
-  if (!hasSoc && !hasPower)
-    return `<div>${title("chart", t("history"))}<div class="empty">${esc(t("no_history"))}</div></div>`;
+  if (!hasSoc && !hasPower) return `<div>${head}<div class="empty">${esc(t("no_history"))}</div></div>`;
   const pmax = Math.max(100, ...(h.pv || []).map((p) => p.v), ...(h.grid || []).map((p) => p.v));
   const ticks = [0, 6, 12, 18, 24].map((i) => fmtTime(h.from + i * 3600000));
   const axis = `<div class="axis" aria-hidden="true">${ticks.map((x) => `<span>${x}</span>`).join("")}</div>`;
   const last = (arr) => arr?.[arr.length - 1]?.v;
   return `
     <div>
-      ${title("chart", t("history"))}
+      ${head}
       ${
         hasSoc
           ? `<div class="hist">

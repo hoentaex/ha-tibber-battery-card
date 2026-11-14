@@ -10,6 +10,7 @@ export const DEFAULTS = {
   animations: true,
   popup: false,
   show_history: false,
+  history_collapsed: false,
   show_tomorrow: false,
   cheap_slots: 24,
   window_horizon_slots: 48,
