@@ -31,9 +31,14 @@ export const STRINGS = {
     st_grid_forced: "Netz lädt (erzwungen)",
     st_discharging: "Akku versorgt Haus",
     st_blocked: "Gesperrt",
+    st_blocked_until: "Gesperrt bis {time}",
+    st_grid_forced_until: "Netz lädt (erzwungen) bis {time}",
+    st_forced_done: "Erzwungen · Ziel erreicht",
+    st_forced_short: "Erzwungen",
     st_idle: "Bereit",
     soc: "Ladestand",
     target: "Ziel",
+    force_until: "Erzwingen bis",
     target_soc: "Ziel-SoC bis Abend",
     pv_to_batt: "PV → Akku",
     batt_to_house: "Akku → Haus",
@@ -69,9 +74,12 @@ export const STRINGS = {
     mode_auto: "Auto",
     mode_force: "Erzwingen",
     mode_block: "Sperren",
-    hint_auto: "Controller entscheidet nach Defizit, Preis und PV.",
-    hint_force: "Lädt aus dem Netz bis zum Ziel-SoC.",
-    hint_block: "Kein Laden aus dem Netz.",
+    hint_auto: "Controller entscheidet nach Preis, Ladefenster, Defizit und PV.",
+    hint_force: "Lädt aus dem Netz bis {target} %",
+    hint_force_plain: "Lädt aus dem Netz (erzwungen)",
+    hint_block: "Kein Laden aus dem Netz",
+    hint_until: "zurück auf Auto um {time}",
+    tomorrow: "morgen",
     savings_today: "Ersparnis heute",
     grid_today: "Netzladung heute",
     pv_today: "PV Ist / Prognose",
@@ -95,9 +103,14 @@ export const STRINGS = {
     st_grid_forced: "Grid charging (forced)",
     st_discharging: "Battery powers home",
     st_blocked: "Blocked",
+    st_blocked_until: "Blocked until {time}",
+    st_grid_forced_until: "Grid charging (forced) until {time}",
+    st_forced_done: "Forced · target reached",
+    st_forced_short: "Forced",
     st_idle: "Ready",
     soc: "State of charge",
     target: "Target",
+    force_until: "Force up to",
     target_soc: "Target SoC by evening",
     pv_to_batt: "PV → battery",
     batt_to_house: "Battery → home",
@@ -133,9 +146,12 @@ export const STRINGS = {
     mode_auto: "Auto",
     mode_force: "Force",
     mode_block: "Block",
-    hint_auto: "The controller decides from deficit, price and PV.",
-    hint_force: "Charges from the grid up to the target SoC.",
-    hint_block: "No charging from the grid.",
+    hint_auto: "The controller decides from price, charging window, deficit and PV.",
+    hint_force: "Charges from the grid up to {target} %",
+    hint_force_plain: "Charges from the grid (forced)",
+    hint_block: "No charging from the grid",
+    hint_until: "back to Auto at {time}",
+    tomorrow: "tomorrow",
     savings_today: "Savings today",
     grid_today: "Grid charge today",
     pv_today: "PV actual / forecast",
@@ -191,6 +207,43 @@ export const fmtTime = (ms) => {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 };
 
+// Locale tag for times and dates: the card language, refined by Home Assistant's locale (en-GB, de-AT, …).
+const localeTag = (lang, locale) => {
+  const l = locale?.language;
+  return l && l.slice(0, 2) === lang ? l : lang === "de" ? "de-DE" : "en-US";
+};
+
+// Clock time in the user's locale; Home Assistant's 12/24 h setting wins over the language default.
+export const fmtClock = (ms, lang, locale) => {
+  const tag = localeTag(lang, locale);
+  const tf = locale?.time_format;
+  const h12 =
+    tf === "12"
+      ? true
+      : tf === "24"
+        ? false
+        : /h1[12]/.test(new Intl.DateTimeFormat(tag, { hour: "numeric" }).resolvedOptions().hourCycle);
+  // 24 h clocks with two-digit hours (09:05), 12 h clocks without (9:05 AM).
+  return new Intl.DateTimeFormat(tag, {
+    hour: h12 ? "numeric" : "2-digit",
+    minute: "2-digit",
+    hourCycle: h12 ? "h12" : "h23",
+  }).format(new Date(ms));
+};
+
+// End of an override: "13:00" today, "morgen 13:00", else date and time. Past or invalid → undefined.
+export const fmtUntil = (ms, now, lang, locale) => {
+  if (ms == null || !Number.isFinite(ms) || ms <= now) return undefined;
+  const clock = fmtClock(ms, lang, locale);
+  const day = startOfDay(ms);
+  if (day === startOfDay(now)) return clock;
+  if (day === startOfDay(now, 1)) return `${STRINGS[lang]?.tomorrow ?? STRINGS.en.tomorrow} ${clock}`;
+  const date = new Intl.DateTimeFormat(localeTag(lang, locale), { day: "2-digit", month: "2-digit" }).format(
+    new Date(ms),
+  );
+  return `${date} ${clock}`;
+};
+
 export const esc = (s) =>
   String(s ?? "").replace(
     /[&<>"']/g,
@@ -240,6 +293,33 @@ export const modeOf = (hass, config) => {
   const opts = { ...DEFAULTS.mode_options, ...config.mode_options };
   const v = String(st.state).toLowerCase();
   return Object.keys(opts).find((k) => String(opts[k]).toLowerCase() === v);
+};
+
+// A point in time from an entity, as ms: input_datetime (date and time; the `timestamp` attribute first,
+// else the local "YYYY-MM-DD HH:MM:SS" state) or a timestamp sensor (ISO state). Time-only helpers have no
+// date and give undefined.
+export const timeOf = (hass, id) => {
+  const st = stateOf(hass, id);
+  if (!st) return undefined;
+  const a = st.attributes || {};
+  if (id.startsWith("input_datetime.")) {
+    if (a.has_date === false) return undefined;
+    const ts = Number.parseFloat(a.timestamp);
+    if (Number.isFinite(ts)) return ts * 1000;
+    const m = String(st.state).match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+    if (!m) return undefined;
+    const [, y, mo, d, h = 0, mi = 0, s = 0] = m.map((x) => (x === undefined ? undefined : Number(x)));
+    return new Date(y, mo - 1, d, h, mi, s).getTime();
+  }
+  const t = Date.parse(st.state);
+  return Number.isFinite(t) ? t : undefined;
+};
+
+// Text of an entity (reason helper), trimmed; missing, unavailable or empty → undefined.
+export const textOf = (hass, id) => {
+  const st = stateOf(hass, id);
+  const s = st ? String(st.state).trim() : "";
+  return s || undefined;
 };
 
 // ---------------------------------------------------------------------------
@@ -494,25 +574,38 @@ export const readLive = (hass, config) => {
   const soc = numOf(hass, config.soc_entity);
   const capacity = numOf(hass, config.capacity_entity) ?? (Number.parseFloat(config.capacity_kwh) || undefined);
   const targetSt = stateOf(hass, config.target_soc_entity);
+  const mode = modeOf(hass, config);
+  const forceSt = stateOf(hass, config.force_target_soc_entity);
+  const forceTarget = numOf(hass, config.force_target_soc_entity);
+  const target = numOf(hass, config.target_soc_entity);
+  // In Force mode with its own target helper, that target is the one in effect (ring, slider).
+  const forcing = mode === "force" && forceTarget != null;
   return {
     soc,
     capacity,
     kwh: soc != null && capacity != null ? (soc / 100) * capacity : undefined,
-    target: numOf(hass, config.target_soc_entity),
+    target,
     targetAttrs: targetSt?.attributes,
+    forceTarget,
+    activeTarget: forcing ? forceTarget : target,
+    activeTargetEntity: forcing ? config.force_target_soc_entity : config.target_soc_entity,
+    activeTargetAttrs: forcing ? forceSt?.attributes : targetSt?.attributes,
+    forcing,
+    until: timeOf(hass, config.override_until_entity),
+    reason: textOf(hass, config.reason_entity),
     batt,
     pv: powerOf(hass, config.pv_power_entity),
     grid: powerOf(hass, config.grid_charge_power_entity),
     house: powerOf(hass, config.house_power_entity),
     gridSwitch: boolOf(hass, config.grid_charge_switch),
-    mode: modeOf(hass, config),
+    mode,
   };
 };
 
 // Status pill: mode helper first, then the grid charge switch, then the power signs.
 export const deriveStatus = ({ mode, gridSwitch, grid, batt, pv }) => {
   if (mode === "block") return "blocked";
-  if (mode === "force") return "grid_forced";
+  if (mode === "force") return gridSwitch === false ? "forced_done" : "grid_forced";
   if (gridSwitch === true || (grid ?? 0) > ACTIVE_W) return "grid";
   if (batt != null) {
     if (batt < -ACTIVE_W) return "discharging";
@@ -520,6 +613,37 @@ export const deriveStatus = ({ mode, gridSwitch, grid, batt, pv }) => {
     return "idle";
   }
   return (pv ?? 0) > ACTIVE_W ? "pv" : "idle";
+};
+
+// Pill text: full, short (narrow cards) and the tooltip. `until` is shown only while it lies ahead.
+export const statusText = (status, until, now, t, lang, locale) => {
+  const time = fmtUntil(until, now, lang, locale);
+  if (status === "blocked") {
+    const full = time ? t("st_blocked_until", { time }) : t("st_blocked");
+    return { full, short: t("st_blocked"), title: full };
+  }
+  if (status === "grid_forced") {
+    const full = time ? t("st_grid_forced_until", { time }) : t("st_grid_forced");
+    return { full, short: t("st_forced_short"), title: full };
+  }
+  if (status === "forced_done")
+    return { full: t("st_forced_done"), short: t("st_forced_short"), title: t("st_forced_done") };
+  const full = t(`st_${status}`);
+  return { full, short: full, title: full };
+};
+
+// Hint under the mode switch: what the mode does and when it falls back to Auto.
+export const modeHint = (live, now, t, lang, locale) => {
+  if (!live.mode) return undefined;
+  if (live.mode === "auto") return t("hint_auto");
+  const base =
+    live.mode === "block"
+      ? t("hint_block")
+      : live.forceTarget != null
+        ? t("hint_force", { target: fmtNum(live.forceTarget, 0, lang) })
+        : t("hint_force_plain");
+  const time = fmtUntil(live.until, now, lang, locale);
+  return `${base}${time ? ` · ${t("hint_until", { time })}` : ""}.`;
 };
 
 // Energy flows in W (all ≥ 0).
@@ -541,6 +665,7 @@ export const STATUS_COLOR = {
   pv: "var(--tb-pv)",
   grid: "var(--tb-grid)",
   grid_forced: "var(--tb-grid)",
+  forced_done: "var(--tb-batt)",
   discharging: "var(--tb-batt)",
   blocked: "var(--tb-block)",
   idle: "var(--secondary-text-color)",

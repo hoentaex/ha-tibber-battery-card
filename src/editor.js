@@ -7,7 +7,7 @@ const LABELS = {
     subtitle: "Untertitel",
     g_battery: "Akku und Leistung",
     g_control: "Steuerung",
-    g_reasons: "Gründe (Chips)",
+    g_reasons: "Gründe und Entscheidung",
     g_footer: "Tagesbilanz",
     g_prices: "Preise und Ladefenster",
     g_display: "Darstellung",
@@ -23,6 +23,9 @@ const LABELS = {
     grid_charge_switch: "Netzladen an/aus",
     mode_entity: "Modus-Helfer (input_select)",
     target_soc_entity: "Ziel-SoC (input_number)",
+    force_target_soc_entity: "Ziel-SoC für Erzwingen (input_number)",
+    override_until_entity: "Ablauf von Erzwingen/Sperren (input_datetime)",
+    reason_entity: "Grund der Entscheidung (Text)",
     deficit_entity: "Energie-Defizit (kWh)",
     pv_block_entity: "PV-Sperre aktiv",
     window_entity: "Aktuell im Ladefenster",
@@ -63,7 +66,7 @@ const LABELS = {
     subtitle: "Subtitle",
     g_battery: "Battery and power",
     g_control: "Control",
-    g_reasons: "Reasons (chips)",
+    g_reasons: "Reasons and decision",
     g_footer: "Daily totals",
     g_prices: "Prices and charging window",
     g_display: "Display",
@@ -79,6 +82,9 @@ const LABELS = {
     grid_charge_switch: "Grid charging on/off",
     mode_entity: "Mode helper (input_select)",
     target_soc_entity: "Target SoC (input_number)",
+    force_target_soc_entity: "Target SoC for Force (input_number)",
+    override_until_entity: "End of Force/Block (input_datetime)",
+    reason_entity: "Reason of the decision (text)",
     deficit_entity: "Energy deficit (kWh)",
     pv_block_entity: "PV lock active",
     window_entity: "Currently in charging window",
@@ -149,7 +155,12 @@ export const editorSchema = (lang, { mini = false } = {}) => {
       name: "",
       title: L.g_control,
       flatten: true,
-      schema: [ent("mode_entity", ["input_select", "select"]), ent("target_soc_entity", ["input_number", "number"])],
+      schema: [
+        ent("mode_entity", ["input_select", "select"]),
+        ent("target_soc_entity", ["input_number", "number"]),
+        ent("force_target_soc_entity", ["input_number", "number"]),
+        ent("override_until_entity", ["input_datetime", "sensor"]),
+      ],
     },
     {
       type: "expandable",
@@ -157,6 +168,7 @@ export const editorSchema = (lang, { mini = false } = {}) => {
       title: L.g_reasons,
       flatten: true,
       schema: [
+        ent("reason_entity", ["input_text", "sensor", "text"]),
         ent("deficit_entity", SENSOR_NUM),
         ent("pv_block_entity", ["binary_sensor", "input_boolean", "sensor", "switch"]),
         ent("window_entity", ["binary_sensor", "input_boolean", "sensor"]),
@@ -397,10 +409,21 @@ export const detectConfig = (hass) => {
     if (block && block !== DEFAULTS.mode_options.block) m.block = block;
     if (Object.keys(m).length) config.mode_options = m;
   }
-  const target = ids.find(
+  // SoC targets: the Force one by name, the regular one is any other.
+  const socTargets = ids.filter(
     (id) => id.startsWith("input_number.") && /soc/.test(id) && states[id].attributes?.unit_of_measurement === "%",
   );
+  const isForce = (id) => /erzwing|force/.test(id);
+  const target = socTargets.find((id) => !isForce(id));
   if (target) config.target_soc_entity = target;
+  const forceTarget = socTargets.find(isForce);
+  if (forceTarget) config.force_target_soc_entity = forceTarget;
+  const until = ids.find(
+    (id) => id.startsWith("input_datetime.") && states[id].attributes?.has_date && /override|ablauf|until/.test(id),
+  );
+  if (until) config.override_until_entity = until;
+  const reason = ids.find((id) => id.startsWith("input_text.") && /grund|reason/.test(id));
+  if (reason) config.reason_entity = reason;
   const price = ids.find((id) => {
     const a = states[id].attributes || {};
     return id.startsWith("sensor.") && Array.isArray(a.today) && a.today[0]?.start_time !== undefined;

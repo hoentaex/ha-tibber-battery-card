@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.4.0 (2026-11-15)
+
+- `reason_entity`: the controller's decision as plain text ("Modus Sperren", "PV liefert Strom" …), shown as a line
+  above the reason chips; the heading follows the grid charge switch ("Why is it (not) charging from the grid?")
+- `override_until_entity`: end of Force / Block (`input_datetime` with date and time, or a timestamp sensor). The pill
+  reads "Gesperrt bis 13:00" / "Netz lädt (erzwungen) bis 13:00", the hint under the mode switch "… · zurück auf Auto
+  um 13:00." ("morgen 06:00", later with the date); past or invalid times are left out
+- `force_target_soc_entity`: in Force mode the slider sets this target ("Erzwingen bis", min / max / step from the
+  helper) and the SoC ring marks it; Force with the grid switch off reads "Erzwungen · Ziel erreicht"
+- Mode hints no longer use fixed texts; "Auto" now reads "Controller entscheidet nach Preis, Ladefenster, Defizit und PV."
+- Narrow cards shorten the pill to "Gesperrt" / "Erzwungen" with the full text as tooltip
+- Times follow Home Assistant's locale and 12 / 24 h setting
+- The target slider calls `number.set_value` for `number` entities (was always `input_number`)
+- New cards also detect the Force target, the override end and the reason helper; a Force target is no longer picked
+  as the regular target SoC
+
 ## 0.3.0 (2026-11-14)
 
 - `show_history` (switch in the editor): the 24 h charts of the detail view (state of charge, PV and grid charging)

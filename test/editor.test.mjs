@@ -18,6 +18,9 @@ test("the editor covers every option, with entity selectors", () => {
     "popup",
     "mode_force",
     "tibber_home",
+    "reason_entity",
+    "override_until_entity",
+    "force_target_soc_entity",
   ])
     assert.ok(n.includes(k), k);
   assert.ok(!names(editorSchema("en", { mini: true })).includes("sections"));
@@ -45,7 +48,10 @@ test("new cards find the battery, its sibling sensors and the helpers", () => {
       "sensor.solarbank_solarleistung": st("0"),
       "sensor.solarbank_hausbedarf": st("0"),
       "input_select.netzlade_modus": st("auto", { options: ["auto", "erzwingen", "Sperren"] }),
+      "input_number.erzwingen_ziel_soc": st("100", { unit_of_measurement: "%" }),
       "input_number.target_evening_soc": st("70", { unit_of_measurement: "%" }),
+      "input_datetime.override_ablauf": st("2026-11-15 13:00:00", { has_date: true, has_time: true }),
+      "input_text.netzlade_grund": st("PV liefert Strom"),
       "sensor.preise": st("0.3", { today: [{ start_time: "x", price: 0.3 }] }),
     },
   };
@@ -58,6 +64,9 @@ test("new cards find the battery, its sibling sensors and the helpers", () => {
   assert.equal(c.mode_entity, "input_select.netzlade_modus");
   assert.deepEqual(c.mode_options, { block: "Sperren" });
   assert.equal(c.target_soc_entity, "input_number.target_evening_soc");
+  assert.equal(c.force_target_soc_entity, "input_number.erzwingen_ziel_soc");
+  assert.equal(c.override_until_entity, "input_datetime.override_ablauf");
+  assert.equal(c.reason_entity, "input_text.netzlade_grund");
   assert.equal(c.price_entity, "sensor.preise");
   assert.deepEqual(detectConfig({ states: {} }), {});
 });

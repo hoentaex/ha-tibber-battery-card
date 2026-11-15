@@ -15,6 +15,8 @@ const shots = [
   { file: "card", scenario: "pv", lang: "de" },
   { file: "card-grid", scenario: "grid", lang: "de" },
   { file: "card-en", scenario: "home", lang: "en" },
+  { file: "card-blocked", scenario: "blocked", lang: "de" },
+  { file: "card-forced", scenario: "forced", lang: "de" },
 ];
 try {
   for (const shot of shots) {

@@ -152,12 +152,14 @@ export class TibberBatteryCard extends HTMLElement {
       t,
       live,
       status,
+      now,
       flows: deriveFlows(live),
       name: config.name ?? t("default_name"),
       subtitle: config.subtitle,
       animate: config.animations !== false && !reduced,
       prices: this._priceView(now),
-      dragTarget: this._dragTarget,
+      // A value being set only counts for the helper it was set on (the mode may switch meanwhile).
+      dragTarget: this._dragEntity === live.activeTargetEntity ? this._dragTarget : undefined,
       popupButton: !!config.popup && !config._detail,
       closeButton: !!config._detail,
       history: config._detail || config.show_history ? this._historySection(now) : undefined,
@@ -354,6 +356,7 @@ export class TibberBatteryCard extends HTMLElement {
     root.addEventListener("input", (e) => {
       if (e.target.id !== "target") return;
       this._dragTarget = Number(e.target.value);
+      this._dragEntity = e.target.dataset.entity;
       const lbl = root.querySelector(".target-val");
       if (lbl) lbl.textContent = `${fmtNum(this._dragTarget, 0, this._lastView?.lang)} %`;
     });
@@ -362,7 +365,10 @@ export class TibberBatteryCard extends HTMLElement {
       this._dragging = false;
       const value = Number(e.target.value);
       this._dragTarget = value;
-      this._hass.callService("input_number", "set_value", { entity_id: this._config.target_soc_entity, value });
+      // The slider names its helper: the Force target while forcing, else the target SoC.
+      const entity = e.target.dataset.entity || this._config.target_soc_entity;
+      const domain = entity.split(".")[0] === "number" ? "number" : "input_number";
+      this._hass.callService(domain, "set_value", { entity_id: entity, value });
       // The helper's new state replaces the local value; give up on it after a few seconds.
       clearTimeout(this._dragTimer);
       this._dragTimer = setTimeout(() => {

@@ -1,7 +1,7 @@
 // Sections of the main card and their styles. Each section takes the view model built by the card
 // and returns markup; a section without data returns "" and simply disappears.
 import { flowRow, historyChart, priceChart, socRing } from "./chart.js";
-import { esc, fmtNum, fmtTime, fmtW, STATUS_COLOR } from "./shared.js";
+import { esc, fmtNum, fmtTime, fmtW, modeHint, STATUS_COLOR, statusText } from "./shared.js";
 
 export const ICONS = {
   tower:
@@ -14,6 +14,8 @@ export const ICONS = {
   chevron: "M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z",
   expand:
     "M10,21V19H6.41L10.91,14.5L9.5,13.09L5,17.59V14H3V21H10M14.5,10.91L19,6.41V10H21V3H14V5H17.59L13.09,9.5L14.5,10.91Z",
+  decision:
+    "M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M11,16.5L18,9.5L16.59,8.09L11,13.67L7.91,10.59L6.5,12L11,16.5Z",
   close:
     "M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z",
 };
@@ -63,7 +65,8 @@ export const STYLE = `
   .ringval { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
   .ringval .pct { font-size: 32px; font-weight: 600; line-height: 1; }
   .ringval .pct small { font-size: 16px; font-weight: 500; }
-  .ringval .kv { font-size: 12px; color: var(--secondary-text-color); margin-top: 4px; line-height: 1.35; }
+  .ringval .kv { font-size: 12px; color: var(--secondary-text-color); margin-top: 4px; line-height: 1.35; max-width: 72%; }
+  .nw { white-space: nowrap; }
   .flows { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
   .flow-top { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; margin-bottom: 6px; }
   .flow-top span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -123,6 +126,9 @@ export const STYLE = `
   .empty { font-size: 13px; color: var(--secondary-text-color); padding: 8px 0; }
 
   /* Reasons */
+  .decision { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 10px; font-size: 14px; line-height: 1.4; color: var(--primary-text-color); }
+  .decision .icon { color: var(--c); margin-top: 1px; }
+  .decision span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
   .chips { display: flex; flex-wrap: wrap; gap: 8px; }
   .reason { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 12px; background: var(--tb-soft); font-size: 13px; min-height: 20px; }
   .reason .k { color: var(--secondary-text-color); }
@@ -163,10 +169,15 @@ export const STYLE = `
   .mmain { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
   .mtop { display: flex; align-items: center; gap: 8px; min-width: 0; }
   .mtop .name { flex: 0 1 auto; min-width: 0; }
+  .mtop .chip { flex: none; max-width: 70%; }
   .mdetail { font-size: 13px; color: var(--secondary-text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .mdetail .ink { font-weight: 500; }
   .mini .zoom { width: 44px; height: 44px; margin: 0; border-radius: 12px; background: var(--tb-soft); }
   .mini + .content { border-top: 1px solid var(--tb-track); padding-top: 16px; }
+  /* Pill: the short text ("Gesperrt") once the card gets narrow, the full one as tooltip. */
+  .chip .st-short { display: none; }
+  @container (max-width: 420px) { .mini .chip .st-full { display: none; } .mini .chip .st-short { display: inline; } }
+  @container (max-width: 340px) { .header .chip .st-full { display: none; } .header .chip .st-short { display: inline; } }
   @container (max-width: 279px) { .mini .chip > span:last-child { display: none; } .mini .chip { padding: 5px; } }
 
   /* Detail view (popup): larger price chart and the 24 h history */
@@ -184,8 +195,14 @@ export const STYLE = `
   }
 `;
 
-const pill = (v) =>
-  `<span class="chip ink" style="--c:${STATUS_COLOR[v.status]}"><span class="dot"></span><span>${esc(v.t(`st_${v.status}`))}</span></span>`;
+const pill = (v) => {
+  const s = statusText(v.status, v.live.until, v.now, v.t, v.lang, v.hass.locale);
+  const text =
+    s.short === s.full
+      ? esc(s.full)
+      : `<span class="st-full">${esc(s.full)}</span><span class="st-short">${esc(s.short)}</span>`;
+  return `<span class="chip ink" style="--c:${STATUS_COLOR[v.status]}" title="${esc(s.title)}"><span class="dot"></span><span>${text}</span></span>`;
+};
 
 export const header = (v) => `
   <div class="header">
@@ -249,21 +266,21 @@ export const battery = (v) => {
           fill: (flows.house / max) * 100,
         })}</div>`
       : "";
-  const ringColor =
-    live.soc != null && live.target != null && live.soc < live.target ? "var(--tb-grid)" : "var(--tb-batt)";
+  const target = live.activeTarget;
+  const ringColor = live.soc != null && target != null && live.soc < target ? "var(--tb-grid)" : "var(--tb-batt)";
   return `
     <div class="battery">
       <div class="ringbox clickable" data-more="${esc(v.config.soc_entity)}">
         ${socRing({
           soc: live.soc,
-          target: live.target,
+          target,
           color: ringColor,
-          label: t("ring_label", { soc: fmtNum(live.soc, 0, lang), target: fmtNum(live.target, 0, lang) }),
+          label: t("ring_label", { soc: fmtNum(live.soc, 0, lang), target: fmtNum(target, 0, lang) }),
         })}
         <div class="ringval">
           <div class="pct">${live.soc != null ? Math.round(live.soc) : "–"}<small>%</small></div>
           ${live.kwh != null ? `<div class="kv">${fmtNum(live.kwh, 1, lang)} kWh</div>` : ""}
-          ${live.target != null ? `<div class="kv">${esc(t("target"))} ${fmtNum(live.target, 0, lang)} %</div>` : ""}
+          ${target != null ? `<div class="kv">${esc(t(live.forcing ? "force_until" : "target"))} <span class="nw">${fmtNum(target, 0, lang)} %</span></div>` : ""}
         </div>
       </div>
       ${rows.length || houseHtml ? `<div class="flows">${flowHtml}${houseHtml}</div>` : "<div></div>"}
@@ -371,34 +388,46 @@ export const reasons = (v) => {
       e: config.mode_entity,
     });
   }
-  if (!chips.length) return "";
-  const charging = v.status === "grid" || v.status === "grid_forced";
+  const reason = live.reason;
+  if (!chips.length && !reason) return "";
+  // The grid charge switch decides the question; without one, the status does.
+  const charging = live.gridSwitch ?? (v.status === "grid" || v.status === "grid_forced");
+  const decision = reason
+    ? `<div class="decision clickable" style="--c:${STATUS_COLOR[v.status]}" data-more="${esc(config.reason_entity)}" title="${esc(reason)}">
+        ${svgIcon(ICONS.decision)}<span>${esc(reason)}</span></div>`
+    : "";
   return `
     <div>
       ${title("help", charging ? t("why_grid") : t("why_not_grid"))}
-      <div class="chips">
-        ${chips
-          .map(
-            (c) =>
-              `<div class="reason clickable" style="--c:${c.c}" data-more="${esc(c.e)}"><span class="dot"></span><span class="k">${esc(c.k)}</span><b>${esc(c.v)}</b></div>`,
-          )
-          .join("")}
-      </div>
+      ${decision}
+      ${
+        chips.length
+          ? `<div class="chips">${chips
+              .map(
+                (c) =>
+                  `<div class="reason clickable" style="--c:${c.c}" data-more="${esc(c.e)}"><span class="dot"></span><span class="k">${esc(c.k)}</span><b>${esc(c.v)}</b></div>`,
+              )
+              .join("")}</div>`
+          : ""
+      }
     </div>`;
 };
 
 export const controls = (v) => {
   const { t, lang, config, live } = v;
   const hasMode = v.has(config.mode_entity);
-  const hasTarget = v.has(config.target_soc_entity);
+  // The slider sets the target in effect: the Force target while forcing, else the target SoC.
+  const targetEntity = live.activeTargetEntity;
+  const hasTarget = v.has(targetEntity);
   if (!hasMode && !hasTarget) return "";
   const modes = [
     ["auto", "var(--tb-grid)"],
     ["force", "var(--tb-grid)"],
     ["block", "var(--tb-block)"],
   ];
-  const a = live.targetAttrs || {};
-  const target = v.dragTarget ?? live.target;
+  const a = live.activeTargetAttrs || {};
+  const target = v.dragTarget ?? live.activeTarget;
+  const hint = modeHint(live, v.now, t, lang, v.hass.locale);
   return `
     <div>
       ${title("tower", t("grid_charging"), ' id="mode-label"')}
@@ -412,14 +441,14 @@ export const controls = (v) => {
                 )
                 .join("")}
             </div>
-            ${live.mode ? `<div class="hint">${esc(t(`hint_${live.mode}`))}</div>` : ""}`
+            ${hint ? `<div class="hint">${esc(hint)}</div>` : ""}`
           : ""
       }
       ${
         hasTarget
           ? `<div class="slider">
-              <div class="slider-top"><label for="target">${esc(t("target_soc"))}</label><b class="target-val">${fmtNum(target, 0, lang)} %</b></div>
-              <input id="target" type="range" min="${a.min ?? 0}" max="${a.max ?? 100}" step="${a.step ?? 1}" value="${target ?? 0}">
+              <div class="slider-top"><label for="target">${esc(t(live.forcing ? "force_until" : "target_soc"))}</label><b class="target-val">${fmtNum(target, 0, lang)} %</b></div>
+              <input id="target" type="range" data-entity="${esc(targetEntity)}" min="${a.min ?? 0}" max="${a.max ?? 100}" step="${a.step ?? 1}" value="${target ?? 0}">
             </div>`
           : ""
       }
@@ -473,16 +502,17 @@ export const mini = (v) => {
     if (prices.level) parts.push(`<span class="ink" style="--c:${c}">${esc(t(prices.level))}</span>`);
   }
   if (live.pv != null) parts.push(`${esc(t("pv"))} ${esc(fmtW(live.pv, lang))}`);
-  if (live.target != null) parts.push(`${esc(t("target"))} ${esc(fmtNum(live.target, 0, lang))} %`);
-  const ringColor =
-    live.soc != null && live.target != null && live.soc < live.target ? "var(--tb-grid)" : "var(--tb-batt)";
+  const target = live.activeTarget;
+  if (target != null)
+    parts.push(`${esc(t(live.forcing ? "force_until" : "target"))} ${esc(fmtNum(target, 0, lang))} %`);
+  const ringColor = live.soc != null && target != null && live.soc < target ? "var(--tb-grid)" : "var(--tb-batt)";
   const btn = v.inline
     ? `<button type="button" class="zoom" data-toggle aria-expanded="${!!v.expanded}" aria-label="${esc(t("open_details"))}">${svgIcon(ICONS.chevron)}</button>`
     : `<button type="button" class="zoom" data-open aria-haspopup="dialog" aria-label="${esc(t("open_details"))}">${svgIcon(ICONS.chevron)}</button>`;
   return `
     <div class="mini">
       <div class="mring clickable" data-more="${esc(v.config.soc_entity)}">
-        ${socRing({ soc: live.soc, size: 56, stroke: 6, color: ringColor, marker: false, label: t("ring_label", { soc: fmtNum(live.soc, 0, lang), target: fmtNum(live.target, 0, lang) }) })}
+        ${socRing({ soc: live.soc, size: 56, stroke: 6, color: ringColor, marker: false, label: t("ring_label", { soc: fmtNum(live.soc, 0, lang), target: fmtNum(target, 0, lang) }) })}
         <div class="ringval"><div class="pct">${live.soc != null ? Math.round(live.soc) : "–"}<small>%</small></div></div>
       </div>
       <div class="mmain">

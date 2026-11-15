@@ -53,6 +53,7 @@ export const SCENARIOS = {
     deficit: 0,
     block: "on",
     win: "True",
+    reason: "PV liefert Strom",
   },
   grid: {
     soc: 41,
@@ -65,6 +66,7 @@ export const SCENARIOS = {
     deficit: 0.62,
     block: "off",
     win: "True",
+    reason: "Günstiges Ladefenster, Defizit 0.6 kWh",
   },
   home: {
     soc: 58,
@@ -77,6 +79,21 @@ export const SCENARIOS = {
     deficit: 0,
     block: "off",
     win: "False",
+    reason: "Abend: Preis nicht im Ladefenster",
+  },
+  forced: {
+    soc: 52,
+    batt: 880,
+    pv: 40,
+    grid: 840,
+    house: 160,
+    sw: "on",
+    mode: "erzwingen",
+    deficit: 0.3,
+    block: "off",
+    win: "False",
+    reason: "Modus Erzwingen",
+    until: "13:00",
   },
   blocked: {
     soc: 33,
@@ -89,7 +106,26 @@ export const SCENARIOS = {
     deficit: 0.48,
     block: "off",
     win: "True",
+    reason: "Modus Sperren",
+    until: "13:00",
   },
+};
+
+// input_datetime state as Home Assistant sends it: local "YYYY-MM-DD HH:MM:SS" plus the epoch timestamp.
+const datetimeState = (ms) => {
+  const d = new Date(ms);
+  const p = (n) => String(n).padStart(2, "0");
+  const state = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:00`;
+  return s(state, { has_date: true, has_time: true, timestamp: Math.floor(ms / 1000) });
+};
+
+// Override end of a scenario: "HH:MM" today, else (Auto) an end that has passed already.
+const untilOf = (sc) => {
+  const d = new Date();
+  if (!sc.until) return d.getTime() - 3600000;
+  const [h, m] = sc.until.split(":").map(Number);
+  d.setHours(h, m, 0, 0);
+  return d.getTime();
 };
 
 const s = (state, attributes = {}) => ({ state: String(state), attributes, last_updated: new Date().toISOString() });
@@ -105,6 +141,9 @@ export const makeStates = (sc) => ({
   "switch.solarbank_2_e1600_ac_notladeoption": s(sc.sw),
   "input_select.tibber_netzlade_modus": s(sc.mode, { options: ["auto", "erzwingen", "sperren"] }),
   "input_number.tibber_target_evening_soc": s("70.0", { min: 20, max: 100, step: 1, unit_of_measurement: "%" }),
+  "input_number.tibber_erzwingen_ziel_soc": s("100.0", { min: 20, max: 100, step: 5, unit_of_measurement: "%" }),
+  "input_datetime.tibber_override_ablauf": datetimeState(untilOf(sc)),
+  "input_text.tibber_netzlade_grund": s(sc.reason ?? ""),
   "sensor.tibber_energie_defizit_heute_kwh": s(sc.deficit, { unit_of_measurement: "kWh" }),
   "binary_sensor.pv_berlin_erzeugung_aktiv": s(sc.block),
   "sensor.tibber_aktuell_in_top6_gunstig_heute": s(sc.win),
@@ -129,6 +168,9 @@ export const CONFIG = {
   grid_charge_switch: "switch.solarbank_2_e1600_ac_notladeoption",
   mode_entity: "input_select.tibber_netzlade_modus",
   target_soc_entity: "input_number.tibber_target_evening_soc",
+  force_target_soc_entity: "input_number.tibber_erzwingen_ziel_soc",
+  override_until_entity: "input_datetime.tibber_override_ablauf",
+  reason_entity: "input_text.tibber_netzlade_grund",
   deficit_entity: "sensor.tibber_energie_defizit_heute_kwh",
   pv_block_entity: "binary_sensor.pv_berlin_erzeugung_aktiv",
   window_entity: "sensor.tibber_aktuell_in_top6_gunstig_heute",
@@ -185,7 +227,16 @@ export const makeHass = (scenario, { language = "de", onChange } = {}) => {
       const next = { ...current, states: { ...current.states } };
       const id = data.entity_id;
       const old = next.states[id];
-      if (domain === "input_select") next.states[id] = s(data.option, old.attributes);
+      if (domain === "input_select") {
+        next.states[id] = s(data.option, old.attributes);
+        // Like the controller in Home Assistant: Force/Block run 3 h, the reason follows the mode.
+        const ablauf = "input_datetime.tibber_override_ablauf";
+        const grund = "input_text.tibber_netzlade_grund";
+        if (data.option !== "auto") next.states[ablauf] = datetimeState(Date.now() + 3 * 3600000);
+        const text = { erzwingen: "Modus Erzwingen", sperren: "Modus Sperren" }[data.option];
+        next.states[grund] = s(text ?? "PV liefert Strom");
+        next.states["switch.solarbank_2_e1600_ac_notladeoption"] = s(data.option === "erzwingen" ? "on" : "off");
+      }
       if (domain === "input_number") next.states[id] = s(data.value, old.attributes);
       current = next;
       onChange?.(next);

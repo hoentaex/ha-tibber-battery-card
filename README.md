@@ -35,9 +35,11 @@ Aufbau und Look orientieren sich an den Karten von [juju35](https://github.com/j
 
 - **Zeigt an:** Ladestand mit Ziel-SoC-Markierung, kWh im Akku, Energieflüsse (PV → Akku, Akku → Haus, Netz → Akku,
   Hausverbrauch, aktive Flüsse animiert), Strompreis jetzt mit günstig / mittel / teuer, Min / Ø / Max,
-  Preisverlauf über 96 Viertelstunden (92 / 100 bei Zeitumstellung) mit Ladefenster, Gründe fürs (Nicht-)Laden,
-  Ersparnis, Netzladung und PV heute.
-- **Setzt:** den Modus-Helfer (Auto / Erzwingen / Sperren) und den Ziel-SoC-Helfer.
+  Preisverlauf über 96 Viertelstunden (92 / 100 bei Zeitumstellung) mit Ladefenster, Gründe fürs (Nicht-)Laden
+  samt der aktuellen Entscheidung deines Controllers, Ablaufzeit von Erzwingen / Sperren, Ersparnis, Netzladung und
+  PV heute.
+- **Setzt:** den Modus-Helfer (Auto / Erzwingen / Sperren), den Ziel-SoC-Helfer und im Modus Erzwingen dessen
+  eigenen Ziel-SoC.
 - **Entscheidet nichts.** Es gibt **keine Steuerlogik** in der Karte. Ob und wann aus dem Netz geladen wird,
   entscheiden **deine** Automationen in Home Assistant. Ohne solche Automationen verändern die Schalter nur die Helfer.
 
@@ -51,6 +53,9 @@ Aufbau und Look orientieren sich an den Karten von [juju35](https://github.com/j
 | Leistungssensoren: Akkuleistung, PV, Netzladung, Hausverbrauch (W oder kW) | Flussbalken, Status | empfohlen |
 | `input_select` mit drei Optionen, z. B. `auto` / `erzwingen` / `sperren` | Modus-Schalter | optional |
 | `input_number` für den Ziel-SoC (min / max / step werden übernommen) | Schieber, Ring-Markierung | optional |
+| `input_number` für den Ziel-SoC beim Erzwingen | Schieber und Ring im Modus Erzwingen | optional |
+| `input_datetime` (Datum + Uhrzeit) oder Sensor mit `device_class: timestamp`, in dem deine Automation das Ende von Erzwingen / Sperren ablegt | „Gesperrt bis 13:00“, „zurück auf Auto um …“ | optional |
+| `input_text` (oder Sensor), in den dein Controller den Grund seiner Entscheidung schreibt | Entscheidungszeile über den Chips | optional |
 | `input_number` oder Wert `capacity_kwh` für die Akkukapazität | kWh unter dem Ring | optional |
 | Weitere Sensoren für Defizit, PV-Sperre, Ladefenster, Forecast-Faktor, Ersparnis, Netzladung, PV heute / Prognose | Chips und Fußzeile | optional |
 | **Eigene Automationen**, die Modus und Ziel-SoC auswerten und z. B. die Netzladung der Solarbank schalten | das eigentliche Laden | für eine echte Steuerung |
@@ -181,6 +186,9 @@ house_power_entity: sensor.solarbank_2_e1600_ac_hausbedarf
 grid_charge_switch: switch.solarbank_2_e1600_ac_notladeoption
 mode_entity: input_select.tibber_netzlade_modus
 target_soc_entity: input_number.tibber_target_evening_soc
+force_target_soc_entity: input_number.tibber_erzwingen_ziel_soc
+override_until_entity: input_datetime.tibber_override_ablauf
+reason_entity: input_text.tibber_netzlade_grund
 deficit_entity: sensor.tibber_energie_defizit_heute_kwh
 pv_block_entity: binary_sensor.pv_berlin_erzeugung_aktiv
 window_entity: sensor.tibber_aktuell_in_top6_gunstig_heute
@@ -203,6 +211,9 @@ pv_forecast_today_entity: sensor.energy_production_today
 | `mode_entity` | Modus-Helfer (`input_select`) | – |
 | `mode_options` | Optionsnamen des Helfers | `{auto: auto, force: erzwingen, block: sperren}` |
 | `target_soc_entity` | Ziel-SoC (`input_number`) | – |
+| `force_target_soc_entity` | Ziel-SoC für Erzwingen (`input_number`); im Modus Erzwingen steuert der Schieber diesen Wert („Erzwingen bis“), und der Ring zeigt ihn als Ziel | – |
+| `override_until_entity` | Ablauf von Erzwingen / Sperren (`input_datetime` mit Datum + Uhrzeit oder Timestamp-Sensor); liegt er in der Vergangenheit, wird keine Uhrzeit gezeigt | – |
+| `reason_entity` | Klartext-Grund der aktuellen Entscheidung (`input_text` oder Sensor), als Zeile über den Chips | – |
 | `deficit_entity`, `pv_block_entity`, `window_entity`, `forecast_factor_entity` | Chips „Warum lädt er (nicht)?“ (`window_entity` nur, wenn es kein Preisfenster gibt) | – |
 | `savings_today_entity`, `grid_kwh_today_entity`, `pv_today_entity`, `pv_forecast_today_entity` | Fußzeile | – |
 | `price_entity` | Preise aus Attributen statt `tibber.get_prices` | – |
@@ -220,8 +231,21 @@ pv_forecast_today_entity: sensor.energy_production_today
 | `popup` | Detailansicht als Dialog (Hauptkarte: Button im Kopf; Mini-Karte: `false` = an Ort und Stelle aufklappen) | Hauptkarte `false`, Mini-Karte `true` |
 | `language` | `de` / `en` | Sprache von Home Assistant |
 
-**Status-Pill:** Modus-Helfer zuerst (*Gesperrt*, *Netz lädt (erzwungen)*), dann Netzlade-Switch bzw. Netzladeleistung
-(*Netz lädt*), dann das Vorzeichen der Akkuleistung (*PV lädt*, *Akku versorgt Haus*), sonst *Bereit*.
+**Status-Pill:** Modus-Helfer zuerst (*Gesperrt bis 13:00*, *Netz lädt (erzwungen) bis 13:00*, bei ausgeschaltetem
+Netzlade-Switch *Erzwungen · Ziel erreicht*), dann Netzlade-Switch bzw. Netzladeleistung (*Netz lädt*), dann das
+Vorzeichen der Akkuleistung (*PV lädt*, *Akku versorgt Haus*), sonst *Bereit*. Auf schmalen Karten kürzt die Pill auf
+*Gesperrt* / *Erzwungen*; die Uhrzeit steht dann im Tooltip.
+
+**Erzwingen und Sperren mit Ablaufzeit:** Setzt deine Automation beim Moduswechsel einen Ablaufzeitpunkt (z. B. jetzt
++ 3 h) in `override_until_entity`, zeigt die Karte unter dem Modus-Schalter etwa „Kein Laden aus dem Netz · zurück auf
+Auto um 13:00.“ (morgen: „morgen 06:00“, später mit Datum). Schreibt dein Controller seine Entscheidung in
+`reason_entity` („Modus Sperren“, „PV liefert Strom“, „Günstiges Ladefenster, Defizit 0.9 kWh“ …), steht sie über den
+Chips; die Überschrift folgt dem Netzlade-Switch („Warum lädt er (nicht) aus dem Netz?“). Beides aktualisiert sich mit
+den normalen Zustandsänderungen, ohne eigene Abfragen.
+
+| Gesperrt bis 13:00 | Erzwingen bis 100 % |
+|---|---|
+| <img src="screenshots/card-blocked-light.png" alt="Karte im Modus Sperren mit Ablaufzeit" width="420"> | <img src="screenshots/card-forced-dark.png" alt="Karte im Modus Erzwingen, dunkel" width="420"> |
 
 ### Mini-Karte und Detailansicht
 
@@ -254,7 +278,9 @@ für Modus-Optionsnamen, Tibber-Zuhause und Feldnamen der Preisquelle. Optionen 
 Beim Hinzufügen einer neuen Karte sucht sie selbst nach einem Ladestand-Sensor (`*_ladestand`, `*_soc`,
 `*_state_of_charge` oder `device_class: battery`), seinen Geschwister-Sensoren der Anker-SOLIX-Integration
 (Akku-, Solar-, Netzlade- und Hausleistung), einem `input_select` mit `auto` als Modus-Helfer, einem
-Ziel-SoC-`input_number` und einem Preissensor mit `today`-Attribut. Ohne Preissensor wird automatisch das erste
+Ziel-SoC-`input_number` (eines mit `erzwingen` / `force` im Namen wird zum Erzwingen-Ziel), einem `input_datetime`
+mit `override` / `ablauf` im Namen, einem `input_text` mit `grund` / `reason` im Namen und einem Preissensor mit
+`today`-Attribut. Ohne Preissensor wird automatisch das erste
 Tibber-Zuhause verwendet.
 
 ---
@@ -272,6 +298,14 @@ but usable with any battery whose values exist as Home Assistant entities: state
 
 **The card contains no control logic.** It only shows states and sets the mode and target SoC helpers; your own
 automations decide when to charge from the grid.
+
+**Force / Block with an end time, and the controller's reason:** three optional entities show what your controller
+does. `force_target_soc_entity` (`input_number`) is the target while forcing: the slider then sets it ("Force up to")
+and the ring marks it. `override_until_entity` (`input_datetime` with date and time, or a timestamp sensor) holds when
+Force / Block falls back to Auto: the pill reads "Blocked until 13:00" / "Grid charging (forced) until 13:00" (short
+"Blocked" / "Forced" on narrow cards, time in the tooltip) and the hint "No charging from the grid · back to Auto at
+13:00."; a time in the past is not shown. `reason_entity` (`input_text` or sensor) is shown as a decision line above
+the chips. With Force on and the grid switch off, the pill reads "Forced · target reached".
 
 **Charging window:** a rolling window like the HA control logic: the `cheap_slots` cheapest (24) of the next
 `window_horizon_slots` quarter hours (48) from the current slot, running past midnight once tomorrow's prices are
