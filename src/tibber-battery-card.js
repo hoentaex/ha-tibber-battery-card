@@ -8,6 +8,7 @@
  *
  * Layout and look follow the cards of juju35 (https://github.com/juju35). MIT licence.
  */
+import { activityEntities, activityHours, activityRequest, buildActivity } from "./activity.js";
 import { slotIndexAt } from "./chart.js";
 import { detectConfig, TibberBatteryCardEditor, TibberBatteryMiniCardEditor } from "./editor.js";
 import "./popup.js";
@@ -36,6 +37,7 @@ import {
   slotAt,
   startOfDay,
   stateOf,
+  textOf,
   translator,
   windowBlocks,
 } from "./shared.js";
@@ -95,6 +97,7 @@ export class TibberBatteryCard extends HTMLElement {
   disconnectedCallback() {
     clearTimeout(this._timer);
     this._timer = undefined;
+    this._stopActivity();
     this._dialog?.close();
   }
 
@@ -109,7 +112,7 @@ export class TibberBatteryCard extends HTMLElement {
 
   getCardSize() {
     const s = this._config?.sections || SECTIONS;
-    const size = { header: 1, battery: 3, price: 4, reasons: 1, controls: 2, footer: 1 };
+    const size = { header: 1, battery: 3, price: 4, reasons: 1, controls: 2, footer: 1, activity: 2 };
     return s.reduce((n, k) => n + (size[k] || 0), 0) + (this._config?.show_history ? 4 : 0);
   }
 
@@ -133,6 +136,9 @@ export class TibberBatteryCard extends HTMLElement {
       this._hist?.loading,
       this._expanded,
       this._histOpen,
+      this._actOpen,
+      this._act?.version,
+      this._act?.ready,
       ...parts,
     ].join(";");
   }
@@ -163,6 +169,7 @@ export class TibberBatteryCard extends HTMLElement {
       popupButton: !!config.popup && !config._detail,
       closeButton: !!config._detail,
       history: config._detail || config.show_history ? this._historySection(now) : undefined,
+      activity: config.sections.includes("activity") ? this._activitySection(now, t, lang, live) : this._stopActivity(),
       inline: config.popup === false,
       expanded: this._expanded,
       has: (id) => !!stateOf(hass, id),
@@ -225,7 +232,7 @@ export class TibberBatteryCard extends HTMLElement {
     const html = this._content(v);
     const focus = this.shadowRoot.activeElement;
     const focusKey = focus?.hasAttribute?.("data-fold")
-      ? "[data-fold]"
+      ? `[data-fold="${focus.dataset.fold}"]`
       : focus?.dataset?.mode
         ? `[data-mode="${focus.dataset.mode}"]`
         : focus?.id
@@ -241,7 +248,13 @@ export class TibberBatteryCard extends HTMLElement {
   _content(v, withHeader = true) {
     // The 24 h charts: always in the detail view, in the normal view with show_history.
     const withHistory = this._config._detail || this._config.show_history;
-    const order = [...this._config.sections, ...(withHistory ? ["history"] : [])];
+    // The activity timeline stays last, below the history charts.
+    const sections = this._config.sections.filter((s) => s !== "activity");
+    const order = [
+      ...sections,
+      ...(withHistory ? ["history"] : []),
+      ...(this._config.sections.includes("activity") ? ["activity"] : []),
+    ];
     const head = withHeader && order.includes("header") ? RENDERERS.header(v) : "";
     const body = order
       .filter((s) => s !== "header")
@@ -300,6 +313,79 @@ export class TibberBatteryCard extends HTMLElement {
     return { from: now - HISTORY_SPAN, to: now, ...this._hist };
   }
 
+  // Recent activity: open or folded (activity_collapsed sets the start, the heading toggles it). While open,
+  // a logbook/event_stream subscription delivers the past hours and then every new change: no polling.
+  _activitySection(now, t, lang, live) {
+    const config = this._config;
+    const roles = activityEntities(config);
+    if (!roles.mode && !roles.switch) return undefined;
+    const hours = activityHours(config);
+    const open = this._actOpen ?? !config.activity_collapsed;
+    if (!open) {
+      this._stopActivity();
+      return { open: false, hours };
+    }
+    if (!this._hass.connection?.subscribeMessage && !this._hass.callWS) return undefined;
+    this._startActivity(Object.values(roles), now, hours);
+    const rows = buildActivity([...this._act.entries.values()], {
+      config,
+      hass: this._hass,
+      now,
+      hours,
+      t,
+      lang,
+      currentReason: live.reason ?? textOf(this._hass, config.reason_entity),
+    });
+    return { open: true, hours, rows, loading: !this._act.ready };
+  }
+
+  _startActivity(ids, now, hours) {
+    const key = `${ids.join(",")}|${hours}`;
+    if (this._act?.key === key) return;
+    this._stopActivity();
+    const act = { key, entries: new Map(), ready: false, version: 0 };
+    this._act = act;
+    const add = (msg) => {
+      if (this._act !== act) return;
+      for (const e of msg?.events || []) act.entries.set(`${e.entity_id}|${e.when}`, e);
+      // Keep a day's margin beyond the window, drop the rest.
+      const keep = Date.now() / 1000 - hours * 3600 - 3600;
+      for (const [k, e] of act.entries) if (e.when < keep) act.entries.delete(k);
+      if (!msg?.partial) act.ready = true;
+      act.version++;
+      this._render(true);
+    };
+    const fail = (err) => {
+      console.warn("tibber-battery-card: activity failed", err?.message || err);
+      add({});
+    };
+    const msg = activityRequest(ids, now, hours);
+    const conn = this._hass.connection;
+    if (conn?.subscribeMessage) {
+      conn
+        .subscribeMessage(add, msg)
+        .then((unsub) => {
+          if (this._act === act) act.unsub = unsub;
+          else unsub();
+        })
+        .catch(fail);
+    } else {
+      this._hass
+        .callWS({ ...msg, type: "logbook/get_events", end_time: new Date(now).toISOString() })
+        .then((events) => add({ events }))
+        .catch(fail);
+    }
+  }
+
+  _stopActivity() {
+    const act = this._act;
+    this._act = undefined;
+    if (!act?.unsub) return;
+    Promise.resolve()
+      .then(() => act.unsub())
+      .catch(() => {});
+  }
+
   _openPopup(opener) {
     if (this._dialog) return;
     const v = this._lastView;
@@ -322,8 +408,10 @@ export class TibberBatteryCard extends HTMLElement {
         this._openPopup(open);
         return;
       }
-      if (e.target.closest?.("[data-fold]")) {
-        this._histOpen = !(this._histOpen ?? !this._config.history_collapsed);
+      const fold = e.target.closest?.("[data-fold]");
+      if (fold) {
+        if (fold.dataset.fold === "activity") this._actOpen = !(this._actOpen ?? !this._config.activity_collapsed);
+        else this._histOpen = !(this._histOpen ?? !this._config.history_collapsed);
         this._render(true);
         return;
       }

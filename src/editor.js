@@ -43,6 +43,8 @@ const LABELS = {
     popup: "Detailansicht als Popup",
     show_history: "24-h-Verlauf auch in der Karte",
     history_collapsed: "24-h-Verlauf anfangs eingeklappt",
+    activity_collapsed: "Letzte Aktivitäten anfangs eingeklappt",
+    activity_hours: "Letzte Aktivitäten: Zeitraum in Stunden",
     language: "Sprache",
     lang_auto: "Automatisch",
     mode_auto: "Option für Auto",
@@ -60,6 +62,7 @@ const LABELS = {
     s_reasons: "Gründe",
     s_controls: "Bedienung",
     s_footer: "Tagesbilanz",
+    s_activity: "Letzte Aktivitäten",
   },
   en: {
     name: "Name",
@@ -102,6 +105,8 @@ const LABELS = {
     popup: "Detail view as a popup",
     show_history: "24 h history in the card too",
     history_collapsed: "24 h history collapsed at first",
+    activity_collapsed: "Recent activity collapsed at first",
+    activity_hours: "Recent activity: hours shown",
     language: "Language",
     lang_auto: "Automatic",
     mode_auto: "Option for Auto",
@@ -119,6 +124,7 @@ const LABELS = {
     s_reasons: "Reasons",
     s_controls: "Controls",
     s_footer: "Daily totals",
+    s_activity: "Recent activity",
   },
 };
 
@@ -227,6 +233,11 @@ export const editorSchema = (lang, { mini = false } = {}) => {
             { name: "popup", selector: { boolean: {} } },
             { name: "show_history", selector: { boolean: {} } },
             { name: "history_collapsed", selector: { boolean: {} } },
+            { name: "activity_collapsed", selector: { boolean: {} } },
+            {
+              name: "activity_hours",
+              selector: { number: { min: 1, max: 72, step: 1, mode: "box", unit_of_measurement: "h" } },
+            },
           ],
         },
         {

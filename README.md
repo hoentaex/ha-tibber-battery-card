@@ -224,10 +224,12 @@ pv_forecast_today_entity: sensor.energy_production_today
 | `cheap_slots` | Ladefenster: Anzahl günstigster Viertelstunden | `24` |
 | `window_horizon_slots` | Ladefenster: Horizont in Viertelstunden ab jetzt | `48` |
 | `show_tomorrow` | Morgen-Preise anhängen, sobald da | `false` |
-| `sections` | Reihenfolge / Auswahl: `header`, `battery`, `price`, `reasons`, `controls`, `footer` | alle |
+| `sections` | Reihenfolge / Auswahl: `header`, `battery`, `price`, `reasons`, `controls`, `footer`, `activity` | alle |
 | `animations` | Flussanimation (respektiert `prefers-reduced-motion`) | `true` |
 | `show_history` | 24-h-Verlauf (Ladestand, PV und Netzladung) auch in der normalen Karte, unter der Tagesbilanz | `false` |
 | `history_collapsed` | 24-h-Verlauf startet eingeklappt; ein Klick auf die Überschrift klappt ihn auf (erst dann werden die Daten geladen) | `false` |
+| `activity_collapsed` | „Letzte Aktivitäten“ starten eingeklappt; ein Klick auf die Überschrift klappt sie auf | `false` |
+| `activity_hours` | Zeitraum der letzten Aktivitäten in Stunden (1–72) | `8` |
 | `popup` | Detailansicht als Dialog (Hauptkarte: Button im Kopf; Mini-Karte: `false` = an Ort und Stelle aufklappen) | Hauptkarte `false`, Mini-Karte `true` |
 | `language` | `de` / `en` | Sprache von Home Assistant |
 
@@ -242,6 +244,14 @@ Auto um 13:00.“ (morgen: „morgen 06:00“, später mit Datum). Schreibt dein
 `reason_entity` („Modus Sperren“, „PV liefert Strom“, „Günstiges Ladefenster, Defizit 0.9 kWh“ …), steht sie über den
 Chips; die Überschrift folgt dem Netzlade-Switch („Warum lädt er (nicht) aus dem Netz?“). Beides aktualisiert sich mit
 den normalen Zustandsänderungen, ohne eigene Abfragen.
+
+**Letzte Aktivitäten:** Ganz unten listet die Karte, was in den letzten 8 Stunden (`activity_hours`) passiert ist:
+Sperre oder Erzwingen aktiviert, zurück auf Auto, Netzladen gestartet oder beendet, Ziel-SoC und Erzwingen-Ziel
+geändert. Jede Zeile nennt den Auslöser („durch Max“ oder den Namen der Automation) und den Grund aus `reason_entity`,
+der zu diesem Zeitpunkt galt. Die Daten kommen aus dem Logbuch von Home Assistant: Beim Aufklappen abonniert die Karte
+die Einträge dieser Entities (`logbook/event_stream`), neue Ereignisse kommen live dazu, eingeklappt wird nichts
+geladen. Ein Klick auf eine Zeile öffnet die Entity. Ohne Modus-Helfer und Netzlade-Switch entfällt der Bereich. Mit
+`activity_collapsed: true` startet er eingeklappt; ganz ausblenden lässt er sich über `sections`.
 
 | Gesperrt bis 13:00 | Erzwingen bis 100 % |
 |---|---|
@@ -306,6 +316,13 @@ Force / Block falls back to Auto: the pill reads "Blocked until 13:00" / "Grid c
 "Blocked" / "Forced" on narrow cards, time in the tooltip) and the hint "No charging from the grid · back to Auto at
 13:00."; a time in the past is not shown. `reason_entity` (`input_text` or sensor) is shown as a decision line above
 the chips. With Force on and the grid switch off, the pill reads "Forced · target reached".
+
+**Recent activity:** at the bottom the card lists what happened in the last 8 hours (`activity_hours`): Block or Force
+switched on, back to Auto, grid charging started or stopped, target SoC and Force target changed. Each row names who
+did it (a user or the automation) and the `reason_entity` text that held at that moment. The rows come from Home
+Assistant's logbook: while the section is open the card subscribes to these entities (`logbook/event_stream`), new
+events appear live; folded, nothing is loaded. `activity_collapsed: true` starts it folded, `sections` without
+`activity` hides it.
 
 **Charging window:** a rolling window like the HA control logic: the `cheap_slots` cheapest (24) of the next
 `window_horizon_slots` quarter hours (48) from the current slot, running past midnight once tomorrow's prices are

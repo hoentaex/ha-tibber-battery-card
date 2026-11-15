@@ -3,7 +3,7 @@
 
 export const QUARTER = 15 * 60 * 1000;
 
-export const SECTIONS = ["header", "battery", "price", "reasons", "controls", "footer"];
+export const SECTIONS = ["header", "battery", "price", "reasons", "controls", "footer", "activity"];
 
 export const DEFAULTS = {
   sections: SECTIONS,
@@ -11,6 +11,8 @@ export const DEFAULTS = {
   popup: false,
   show_history: false,
   history_collapsed: false,
+  activity_collapsed: false,
+  activity_hours: 8,
   show_tomorrow: false,
   cheap_slots: 24,
   window_horizon_slots: 48,
@@ -95,6 +97,20 @@ export const STRINGS = {
     no_history: "Kein Verlauf verfügbar",
     hist_soc_label: "Ladestand der letzten 24 Stunden, aktuell {v} %",
     hist_power_label: "PV-Leistung und Netzladung der letzten 24 Stunden",
+    activity: "Letzte Aktivitäten",
+    activity_hours: "{h} h",
+    act_mode_auto: "Zurück auf Auto",
+    act_mode_force: "Erzwingen aktiviert",
+    act_mode_block: "Sperre aktiviert",
+    act_grid_on: "Netzladen gestartet",
+    act_grid_off: "Netzladen beendet",
+    act_target: "Ziel-SoC auf {v} %",
+    act_force_target: "Erzwingen-Ziel auf {v} %",
+    act_by: "durch {who}",
+    act_user: "Nutzer",
+    yesterday: "gestern",
+    no_activity: "Keine Aktivitäten in den letzten {h} Stunden",
+    loading_activity: "Aktivitäten werden geladen …",
   },
   en: {
     default_name: "Home battery",
@@ -167,6 +183,20 @@ export const STRINGS = {
     no_history: "No history available",
     hist_soc_label: "State of charge over the last 24 hours, now {v} %",
     hist_power_label: "PV power and grid charging over the last 24 hours",
+    activity: "Recent activity",
+    activity_hours: "{h} h",
+    act_mode_auto: "Back to Auto",
+    act_mode_force: "Force on",
+    act_mode_block: "Block on",
+    act_grid_on: "Grid charging started",
+    act_grid_off: "Grid charging stopped",
+    act_target: "Target SoC set to {v} %",
+    act_force_target: "Force target set to {v} %",
+    act_by: "by {who}",
+    act_user: "user",
+    yesterday: "yesterday",
+    no_activity: "No activity in the last {h} hours",
+    loading_activity: "Loading activity …",
   },
 };
 

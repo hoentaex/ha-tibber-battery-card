@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0 (2026-11-15)
+
+- New section `activity` ("Letzte Aktivitäten" / "Recent activity") at the bottom: Block / Force on, back to Auto,
+  grid charging started / stopped, target SoC and Force target changes of the last 8 hours, newest first, each with
+  who triggered it (user or automation) and the controller's reason at that moment; a click opens the entity
+- Data from Home Assistant's logbook through a `logbook/event_stream` subscription while the section is open: new
+  events appear live, no polling; folded, nothing is loaded
+- Options `activity_collapsed` (start folded) and `activity_hours` (1–72, default 8), both in the visual editor
+- Slider drags on a target within a minute count as one change; repeated states after a restart are skipped
+
 ## 0.4.0 (2026-11-15)
 
 - `reason_entity`: the controller's decision as plain text ("Modus Sperren", "PV liefert Strom" …), shown as a line

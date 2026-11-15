@@ -209,14 +209,60 @@ const fakeHistory = (msg) => {
   );
 };
 
+// Logbook of the last hours as Home Assistant's logbook/event_stream sends it ({when} in seconds, with context).
+const CONTROLLER = {
+  context_entity_id: "automation.tibber_netzlade_controller",
+  context_event_type: "automation_triggered",
+  context_name: "Netzlade-Controller",
+};
+const ME = { context_user_id: "user-demo" };
+const fakeLogbook = (sc) => {
+  const now = Date.now();
+  const ago = (min) => (now - min * 60000) / 1000;
+  const mode = "input_select.tibber_netzlade_modus";
+  const sw = "switch.solarbank_2_e1600_ac_notladeoption";
+  const reason = "input_text.tibber_netzlade_grund";
+  const ev = [
+    { entity_id: mode, state: "sperren", when: ago(390), ...ME },
+    { entity_id: reason, state: "Modus Sperren", when: ago(390) + 0.1 },
+    { entity_id: mode, state: "auto", when: ago(210), ...CONTROLLER },
+    { entity_id: reason, state: "Günstiges Ladefenster, Defizit 0.9 kWh", when: ago(210) + 0.2 },
+    { entity_id: sw, state: "on", when: ago(210) + 0.4, ...CONTROLLER },
+    { entity_id: "input_number.tibber_target_evening_soc", state: "70.0", when: ago(150), ...ME },
+    { entity_id: reason, state: "Ziel erreicht", when: ago(140) },
+    { entity_id: sw, state: "off", when: ago(140) + 0.3, ...CONTROLLER },
+  ];
+  if (sc.mode !== "auto")
+    ev.push(
+      { entity_id: mode, state: sc.mode, when: ago(20), ...ME },
+      { entity_id: reason, state: sc.reason, when: ago(20) + 0.1 },
+    );
+  if (sc.sw === "on") ev.push({ entity_id: sw, state: "on", when: ago(20) + 0.4, ...CONTROLLER });
+  if (sc.mode === "auto" && sc.reason) ev.push({ entity_id: reason, state: sc.reason, when: ago(25) });
+  return ev;
+};
+
 // A hass object whose services change its own states and notify `onChange`.
 export const makeHass = (scenario, { language = "de", onChange } = {}) => {
   let current;
+  const streams = new Set();
   const hass = {
     language,
     locale: { language },
     states: makeStates(SCENARIOS[scenario] || SCENARIOS.pv),
     services: { tibber: { get_prices: {} }, input_select: {}, input_number: {} },
+    user: { id: "user-demo", name: "Max" },
+    connection: {
+      // logbook/event_stream: the past entries at once, then every change made through callService.
+      async subscribeMessage(cb, msg) {
+        if (msg.type !== "logbook/event_stream") throw new Error(`unsupported ${msg.type}`);
+        const ids = new Set(msg.entity_ids);
+        const send = (events) => cb({ events: events.filter((e) => ids.has(e.entity_id)) });
+        setTimeout(() => send(fakeLogbook(SCENARIOS[scenario] || SCENARIOS.pv)), 50);
+        streams.add(send);
+        return async () => streams.delete(send);
+      },
+    },
     async callWS(msg) {
       if (msg.type === "call_service" && msg.domain === "tibber")
         return { response: { prices: { "Casa Berlin": [...dayPrices(0), ...dayPrices(1)] } } };
@@ -238,6 +284,17 @@ export const makeHass = (scenario, { language = "de", onChange } = {}) => {
         next.states["switch.solarbank_2_e1600_ac_notladeoption"] = s(data.option === "erzwingen" ? "on" : "off");
       }
       if (domain === "input_number") next.states[id] = s(data.value, old.attributes);
+      // Every changed state goes to the open logbook streams, as by the user.
+      const when = Date.now() / 1000;
+      const events = Object.keys(next.states)
+        .filter((k) => next.states[k].state !== current.states[k]?.state)
+        .map((k, i) => ({
+          entity_id: k,
+          state: next.states[k].state,
+          when: when + i * 0.1,
+          ...(k === id ? ME : CONTROLLER),
+        }));
+      for (const send of streams) send(events);
       current = next;
       onChange?.(next);
       return Promise.resolve();

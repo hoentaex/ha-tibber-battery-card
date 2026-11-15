@@ -1,6 +1,7 @@
 // Sections of the main card and their styles. Each section takes the view model built by the card
 // and returns markup; a section without data returns "" and simply disappears.
 import { flowRow, historyChart, priceChart, socRing } from "./chart.js";
+import { fmtWhen } from "./activity.js";
 import { esc, fmtNum, fmtTime, fmtW, modeHint, STATUS_COLOR, statusText } from "./shared.js";
 
 export const ICONS = {
@@ -16,6 +17,8 @@ export const ICONS = {
     "M10,21V19H6.41L10.91,14.5L9.5,13.09L5,17.59V14H3V21H10M14.5,10.91L19,6.41V10H21V3H14V5H17.59L13.09,9.5L14.5,10.91Z",
   decision:
     "M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M11,16.5L18,9.5L16.59,8.09L11,13.67L7.91,10.59L6.5,12L11,16.5Z",
+  clock:
+    "M13.5,8H12V13L16.28,15.54L17,14.33L13.5,12.25V8M13,3A9,9 0 0,0 4,12H1L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3",
   close:
     "M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z",
 };
@@ -123,6 +126,21 @@ export const STYLE = `
   .lg-win { width: 12px; height: 12px; border-radius: 3px; background: color-mix(in srgb, var(--tb-grid) 40%, transparent); }
   .lg-now { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--primary-text-color); box-sizing: border-box; }
   .lg-fc { width: 16px; border-top: 2px dashed var(--secondary-text-color); }
+  /* Recent activity: a timeline, newest first */
+  .fold-note { margin-left: auto; text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 12px; }
+  .section-title.fold .fold-note + .chevron { margin-left: 4px; }
+  .act { list-style: none; margin: 0; padding: 0; max-height: 320px; overflow-y: auto; }
+  .act li { display: grid; grid-template-columns: 14px minmax(0, 1fr); column-gap: 10px; position: relative; padding-bottom: 12px; }
+  .act li:last-child { padding-bottom: 0; }
+  .act li:not(:last-child)::before { content: ""; position: absolute; left: 6px; top: 17px; bottom: 1px; width: 2px;
+                                      border-radius: 1px; background: var(--tb-track); }
+  .act-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c); margin: 4px 2px 0;
+             box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 18%, transparent); }
+  .act-top { display: flex; align-items: baseline; gap: 8px; font-size: 14px; line-height: 1.35; }
+  .act-title { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .act time { flex: none; font-size: 12px; color: var(--secondary-text-color); font-variant-numeric: tabular-nums; }
+  .act-meta { font-size: 12px; line-height: 1.4; color: var(--secondary-text-color); overflow-wrap: anywhere;
+              display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .empty { font-size: 13px; color: var(--secondary-text-color); padding: 8px 0; }
 
   /* Reasons */
@@ -529,7 +547,7 @@ export const history = (v) => {
   if (!h) return "";
   const { t, lang } = v;
   // The heading is a button that folds the section; closed, nothing is fetched.
-  const head = `<button type="button" class="section-title fold${h.open ? "" : " closed"}" data-fold aria-expanded="${h.open}">
+  const head = `<button type="button" class="section-title fold${h.open ? "" : " closed"}" data-fold="history" aria-expanded="${h.open}">
       ${svgIcon(ICONS.chart)}<span>${esc(t("history"))}</span>${svgIcon(ICONS.chevron, "icon chevron")}</button>`;
   if (!h.open) return `<div>${head}</div>`;
   if (h.loading && !h.soc) return `<div>${head}<div class="empty">${esc(t("loading_history"))}</div></div>`;
@@ -577,4 +595,27 @@ export const history = (v) => {
     </div>`;
 };
 
-export const RENDERERS = { header, battery, price, reasons, controls, footer, history };
+// Recent activity (mode, grid charging, targets) from the logbook; the heading folds it.
+export const activity = (v) => {
+  const a = v.activity;
+  if (!a) return "";
+  const { t, lang } = v;
+  const head = `<button type="button" class="section-title fold${a.open ? "" : " closed"}" data-fold="activity" aria-expanded="${a.open}">
+      ${svgIcon(ICONS.clock)}<span>${esc(t("activity"))}</span><span class="fold-note">${esc(t("activity_hours", { h: a.hours }))}</span>${svgIcon(ICONS.chevron, "icon chevron")}</button>`;
+  if (!a.open) return `<div>${head}</div>`;
+  if (a.loading && !a.rows?.length) return `<div>${head}<div class="empty">${esc(t("loading_activity"))}</div></div>`;
+  if (!a.rows?.length) return `<div>${head}<div class="empty">${esc(t("no_activity", { h: a.hours }))}</div></div>`;
+  const items = a.rows.map((r) => {
+    const meta = [r.who ? t("act_by", { who: r.who }) : "", r.reason || ""].filter(Boolean).map(esc).join(" · ");
+    return `<li class="clickable" data-more="${esc(r.entity)}" style="--c:${r.color}">
+        <span class="act-dot" aria-hidden="true"></span>
+        <div>
+          <div class="act-top"><span class="act-title">${esc(r.title)}</span><time datetime="${new Date(r.t).toISOString()}">${esc(fmtWhen(r.t, v.now, lang, v.hass?.locale))}</time></div>
+          ${meta ? `<div class="act-meta">${meta}</div>` : ""}
+        </div>
+      </li>`;
+  });
+  return `<div>${head}<ol class="act">${items.join("")}</ol></div>`;
+};
+
+export const RENDERERS = { header, battery, price, reasons, controls, footer, history, activity };
