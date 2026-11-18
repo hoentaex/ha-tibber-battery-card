@@ -189,18 +189,26 @@ test("controls show the hint with the end time, no fixed reset texts", () => {
   assert.doesNotMatch(c, /Reset um/);
 });
 
-test("decision line: shown with a reason, hidden when missing, unavailable or empty", () => {
-  const v = view({ "input_select.mode": st("sperren") });
-  const r = reasons(v);
-  assert.match(r, /class="decision/);
-  assert.match(r, /Modus Sperren/);
-  assert.ok(r.indexOf("decision") < r.indexOf('class="chips"'));
+test("reason badge: red while blocked, grid colour while charging, none without a reason", () => {
+  const r = reasons(view({ "input_select.mode": st("sperren") }));
+  assert.doesNotMatch(r, /class="decision/);
+  assert.match(r, /class="reason clickable blocker" style="--c:var\(--tb-stop\)"/);
+  assert.match(r, /Blockiert<\/span><b>Modus Sperren<\/b>/);
+  assert.ok(r.indexOf("blocker") < r.indexOf("Defizit"));
   assert.match(r, /Warum lädt er nicht aus dem Netz\?/);
-  assert.match(reasons(view({ "switch.grid": st("on") })), /Warum lädt er aus dem Netz\?/);
+  const on = reasons(view({ "switch.grid": st("on"), "input_text.reason": st("Tagladen läuft") }));
+  assert.match(on, /Warum lädt er aus dem Netz\?/);
+  assert.match(on, /Lädt<\/span><b>Tagladen läuft<\/b>/);
+  assert.doesNotMatch(on, /blocker|--tb-stop/);
   for (const s of ["unavailable", "unknown", "", "   "])
-    assert.doesNotMatch(reasons(view({ "input_text.reason": st(s) })), /class="decision/, s);
+    assert.doesNotMatch(reasons(view({ "input_text.reason": st(s) })), /blocker/, s);
   const { reason_entity: _r, ...noReason } = CONFIG;
-  assert.doesNotMatch(reasons(view({}, noReason)), /class="decision/);
+  assert.doesNotMatch(reasons(view({}, noReason)), /blocker/);
+  // Without a reason helper, Block mode still shows as the red badge.
+  assert.match(
+    reasons(view({ "input_select.mode": st("sperren") }, noReason)),
+    /blocker[^>]*><span class="dot"><\/span><span class="k">Modus/,
+  );
   assert.equal(textOf({ states: { "input_text.x": st("  PV liefert Strom ") } }, "input_text.x"), "PV liefert Strom");
 });
 

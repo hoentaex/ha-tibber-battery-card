@@ -16,8 +16,6 @@ export const ICONS = {
   chevron: "M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z",
   expand:
     "M10,21V19H6.41L10.91,14.5L9.5,13.09L5,17.59V14H3V21H10M14.5,10.91L19,6.41V10H21V3H14V5H17.59L13.09,9.5L14.5,10.91Z",
-  decision:
-    "M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M11,16.5L18,9.5L16.59,8.09L11,13.67L7.91,10.59L6.5,12L11,16.5Z",
   clock:
     "M13.5,8H12V13L16.28,15.54L17,14.33L13.5,12.25V8M13,3A9,9 0 0,0 4,12H1L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3",
   close:
@@ -33,7 +31,7 @@ export const svgIcon = (path, cls = "icon") =>
 
 export const STYLE = `
   :host {
-    --tb-pv: #f5b942; --tb-grid: #5aa9ff; --tb-batt: #5fd08a; --tb-expensive: #ff9a5c; --tb-block: #ff8f8f;
+    --tb-pv: #f5b942; --tb-grid: #5aa9ff; --tb-batt: #5fd08a; --tb-expensive: #ff9a5c; --tb-block: #ff8f8f; --tb-stop: #ef5350;
     --tb-line-mid: var(--secondary-text-color, #9b9b9b);
     --tb-soft: var(--secondary-background-color, rgba(127,127,127,.08));
     --tb-track: var(--divider-color, rgba(127,127,127,.25));
@@ -145,13 +143,13 @@ export const STYLE = `
   .empty { font-size: 13px; color: var(--secondary-text-color); padding: 8px 0; }
 
   /* Reasons */
-  .decision { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 10px; font-size: 14px; line-height: 1.4; color: var(--primary-text-color); }
-  .decision .icon { color: var(--c); margin-top: 1px; }
-  .decision span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
   .chips { display: flex; flex-wrap: wrap; gap: 8px; }
   .reason { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 12px; background: var(--tb-soft); font-size: 13px; min-height: 20px; }
   .reason .k { color: var(--secondary-text-color); }
-  .reason b { font-weight: 500; }
+  .reason b { font-weight: 500; min-width: 0; overflow-wrap: anywhere; }
+  .reason { max-width: 100%; box-sizing: border-box; }
+  .reason.blocker { background: color-mix(in srgb, var(--c) 16%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 45%, transparent); }
+  .reason.blocker .k, .reason.blocker b { color: var(--c); }
 
   /* Controls */
   .seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 14px; background: var(--tb-soft); }
@@ -389,8 +387,24 @@ export const price = (v) => {
 
 export const reasons = (v) => {
   const { t, lang, config, live } = v;
+  // The grid charge switch decides the question; without one, the status does.
+  const charging = live.gridSwitch ?? (v.status === "grid" || v.status === "grid_forced");
+  const reason = live.reason;
   const chips = [];
   const ok = (id) => v.has(id);
+  // The controller's reason comes first: red while it keeps the grid charging off, in the grid colour while it charges.
+  // A red badge therefore always means "blocked", no red badge means it charges.
+  if (reason) {
+    chips.push({
+      k: charging ? t("charging_because") : t("blocked_because"),
+      v: reason,
+      c: charging ? "var(--tb-grid)" : "var(--tb-stop)",
+      e: config.reason_entity,
+      blocker: !charging,
+    });
+  } else if (live.mode === "block" && !charging) {
+    chips.push({ k: t("mode"), v: t("mode_block"), c: "var(--tb-stop)", e: config.mode_entity, blocker: true });
+  }
   if (ok(config.deficit_entity)) {
     const d = v.num(config.deficit_entity);
     chips.push({
@@ -428,36 +442,22 @@ export const reasons = (v) => {
       e: config.forecast_factor_entity,
     });
   }
-  if (live.mode && live.mode !== "auto") {
-    chips.push({
-      k: t("mode"),
-      v: t(`mode_${live.mode}`),
-      c: live.mode === "block" ? "var(--tb-block)" : "var(--tb-grid)",
-      e: config.mode_entity,
-    });
+  // Force shows as its own chip; Block is covered by the red badge above.
+  if (live.mode === "force") {
+    chips.push({ k: t("mode"), v: t("mode_force"), c: "var(--tb-grid)", e: config.mode_entity });
   }
-  const reason = live.reason;
-  if (!chips.length && !reason) return "";
-  // The grid charge switch decides the question; without one, the status does.
-  const charging = live.gridSwitch ?? (v.status === "grid" || v.status === "grid_forced");
-  const decision = reason
-    ? `<div class="decision clickable" style="--c:${STATUS_COLOR[v.status]}" data-more="${esc(config.reason_entity)}" title="${esc(reason)}">
-        ${svgIcon(ICONS.decision)}<span>${esc(reason)}</span></div>`
-    : "";
+  if (!chips.length) return "";
   return `
     <div>
       ${title("help", charging ? t("why_grid") : t("why_not_grid"))}
-      ${decision}
-      ${
-        chips.length
-          ? `<div class="chips">${chips
-              .map(
-                (c) =>
-                  `<div class="reason clickable" style="--c:${c.c}" data-more="${esc(c.e)}"><span class="dot"></span><span class="k">${esc(c.k)}</span><b>${esc(c.v)}</b></div>`,
-              )
-              .join("")}</div>`
-          : ""
-      }
+      <div class="chips">${chips
+        .map(
+          (c) =>
+            `<div class="reason clickable${c.blocker ? " blocker" : ""}" style="--c:${c.c}" data-more="${esc(c.e)}"${
+              c.e === config.reason_entity ? ` title="${esc(c.v)}"` : ""
+            }><span class="dot"></span><span class="k">${esc(c.k)}</span><b>${esc(c.v)}</b></div>`,
+        )
+        .join("")}</div>
     </div>`;
 };
 

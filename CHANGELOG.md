@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.1 (2026-11-18)
+
+- **Reason as a badge:** the controller's reason (`reason_entity`) is no longer a line with a check mark above the
+  chips but the first chip itself: red "Blockiert: Preis über Grenze" while grid charging is off, blue "Lädt: …" while
+  it runs. A red badge always means blocked, no red badge means it charges. Without a reason helper, Block mode shows
+  as the red badge
+
 ## 0.6.0 (2026-11-18)
 
 - **Illustrated header** on the card, the mini card and the detail popup, in the style of juju35's cards: a 90 px banner

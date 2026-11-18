@@ -316,8 +316,9 @@ does. `force_target_soc_entity` (`input_number`) is the target while forcing: th
 and the ring marks it. `override_until_entity` (`input_datetime` with date and time, or a timestamp sensor) holds when
 Force / Block falls back to Auto: the pill reads "Blocked until 13:00" / "Grid charging (forced) until 13:00" (short
 "Blocked" / "Forced" on narrow cards, time in the tooltip) and the hint "No charging from the grid · back to Auto at
-13:00."; a time in the past is not shown. `reason_entity` (`input_text` or sensor) is shown as a decision line above
-the chips. With Force on and the grid switch off, the pill reads "Forced · target reached".
+13:00."; a time in the past is not shown. `reason_entity` (`input_text` or sensor) is the first chip: red ("Blocked: Price
+above limit") while the grid charging is off, in the grid colour ("Charging: …") while it runs. A red chip therefore
+always means grid charging is held back, and its text says why; no red chip means it charges. With Force on and the grid switch off, the pill reads "Forced · target reached".
 
 **Recent activity:** at the bottom the card lists what happened in the last 8 hours (`activity_hours`): Block or Force
 switched on, back to Auto, grid charging started or stopped, target SoC and Force target changed. Each row names who
