@@ -10,6 +10,7 @@
  */
 import { activityEntities, activityHours, activityRequest, buildActivity } from "./activity.js";
 import { slotIndexAt } from "./chart.js";
+import { isNight } from "./banner.js";
 import { detectConfig, TibberBatteryCardEditor, TibberBatteryMiniCardEditor } from "./editor.js";
 import "./popup.js";
 import { mini, RENDERERS, STYLE } from "./sections.js";
@@ -99,6 +100,8 @@ export class TibberBatteryCard extends HTMLElement {
     this._timer = undefined;
     this._stopActivity();
     this._dialog?.close();
+    this._ro?.disconnect();
+    this._ro = undefined;
   }
 
   // Wakes up at every full quarter hour: the now marker moves and prices may be due.
@@ -161,6 +164,8 @@ export class TibberBatteryCard extends HTMLElement {
       now,
       flows: deriveFlows(live),
       name: config.name ?? t("default_name"),
+      illustrated: config.illustration !== false,
+      night: isNight(hass, config),
       subtitle: config.subtitle,
       animate: config.animations !== false && !reduced,
       prices: this._priceView(now),
@@ -242,6 +247,27 @@ export class TibberBatteryCard extends HTMLElement {
     if (this._dialog) this._dialog.hass = this._hass;
     if (focusKey) this.shadowRoot.querySelector(focusKey)?.focus();
     this._bind();
+    this._fitPill();
+  }
+
+  // The status pill in the banner: right after the title when the title and the whole pill fit on that row, else on
+  // its own line under the subtitle; when even that runs into the ground strip, its dot alone. Measured, so that every
+  // language and width gets it right; refitted when the card is resized.
+  _fitPill() {
+    const t = this.shadowRoot.querySelector(".banner .titles");
+    if (!t?.isConnected) return;
+    if (!this._ro && typeof ResizeObserver !== "undefined") {
+      this._ro = new ResizeObserver(() => this._fitPill());
+      this._ro.observe(this);
+    }
+    t.classList.remove("below", "dotonly");
+    const name = t.querySelector(".name");
+    const chip = t.querySelector(".chip");
+    if (!name || !chip || !t.clientWidth) return;
+    if (name.scrollWidth + 8 + chip.scrollWidth <= t.clientWidth + 0.5) return;
+    t.classList.add("below");
+    const floor = t.closest(".banner").getBoundingClientRect().bottom - 10 + 0.5;
+    if (chip.getBoundingClientRect().bottom > floor) t.classList.add("dotonly");
   }
 
   // Header and sections of the full card.

@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.6.0 (2026-11-18)
+
+- **Illustrated header** on the card, the mini card and the detail popup, in the style of juju35's cards: a 90 px banner
+  with the name and the status pill on the sky, the grid connection at the right (power pylon, meter cabinet with the
+  Tibber Pulse, cable to the battery whose five LED segments show the state of charge) and the current price with
+  what happens top right ("Netz → Akku +620 W", "wartet auf Ladefenster" …)
+- Power flows in the picture: blue from the pylon through the meter into the battery while charging from the grid,
+  green from the battery back to the house while it discharges; the ground strip under the banner in the state
+  colour (blue grid, yellow PV, green discharge, amber blocked, grey idle)
+- The status pill follows the name when both fit, else it goes under the subtitle (its dot alone when there is no
+  room left); detail / close / expand buttons are frosted round buttons in the banner's corner; below 280 px the
+  picture is left out
+- Night picture with Home Assistant's dark theme; `illustration_theme: day | night` forces one, `illustration: false`
+  keeps the classic header. Both options in the visual editor
+- Mini card: the banner, then the state-of-charge ring and the key figures
+
 ## 0.5.0 (2026-11-15)
 
 - New section `activity` ("Letzte Aktivitäten" / "Recent activity") at the bottom: Block / Force on, back to Auto,

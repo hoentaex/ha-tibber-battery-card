@@ -2,6 +2,7 @@
 // and returns markup; a section without data returns "" and simply disappears.
 import { flowRow, historyChart, priceChart, socRing } from "./chart.js";
 import { fmtWhen } from "./activity.js";
+import { BANNER_STYLE, gridScene, readout } from "./banner.js";
 import { esc, fmtNum, fmtTime, fmtW, modeHint, STATUS_COLOR, statusText } from "./shared.js";
 
 export const ICONS = {
@@ -208,6 +209,7 @@ export const STYLE = `
   .hchart .hline { fill: none; stroke-width: 2; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
   .hist + .hist { margin-top: 10px; }
 
+${BANNER_STYLE}
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { transition: none !important; animation: none !important; }
   }
@@ -222,16 +224,44 @@ const pill = (v) => {
   return `<span class="chip ink" style="--c:${STATUS_COLOR[v.status]}" title="${esc(s.title)}"><span class="dot"></span><span>${text}</span></span>`;
 };
 
-export const header = (v) => `
+// Colour of the round logo: the status colour, the battery green while idle.
+const logoColor = (v) => (STATUS_COLOR[v.status] === STATUS_COLOR.idle ? "var(--tb-batt)" : STATUS_COLOR[v.status]);
+
+// The illustrated header: logo, title with the status pill and subtitle on the sky, the grid connection at the right,
+// the ground strip in the state colour, and the detail / close / expand button as a frosted round button.
+export const banner = (v, button = "") => {
+  const r = readout(v);
+  return `
+  <div class="banner${v.night ? " night" : ""}">
+    ${gridScene(r.state, v.live.soc, r.top, r.what)}
+    <div class="head">
+      <div class="logo" style="--c:${logoColor(v)}">${svgIcon(ICONS.battery)}</div>
+      <div class="titles">
+        <div class="trow"><div class="name" title="${esc(v.name)}">${esc(v.name)}</div>${pill(v)}</div>
+        ${v.subtitle ? `<div class="sub">${esc(v.subtitle)}</div>` : ""}
+      </div>
+    </div>
+    <div class="wallx"></div>
+    <div class="ground ${r.state}"></div>
+    ${button}
+  </div>`;
+};
+
+const headerButtons = (v) =>
+  `${v.popupButton ? `<button type="button" class="zoom" data-open aria-haspopup="dialog" aria-label="${esc(v.t("open_details"))}">${svgIcon(ICONS.expand)}</button>` : ""}${v.closeButton ? `<button type="button" class="zoom" data-close aria-label="${esc(v.t("close"))}">${svgIcon(ICONS.close)}</button>` : ""}`;
+
+export const header = (v) =>
+  v.illustrated
+    ? banner(v, headerButtons(v))
+    : `
   <div class="header">
-    <div class="logo" style="--c:${STATUS_COLOR[v.status] === STATUS_COLOR.idle ? "var(--tb-batt)" : STATUS_COLOR[v.status]}">${svgIcon(ICONS.battery)}</div>
+    <div class="logo" style="--c:${logoColor(v)}">${svgIcon(ICONS.battery)}</div>
     <div class="titles">
       <div class="name">${esc(v.name)}</div>
       ${v.subtitle ? `<div class="sub">${esc(v.subtitle)}</div>` : ""}
     </div>
     ${pill(v)}
-    ${v.popupButton ? `<button type="button" class="zoom" data-open aria-haspopup="dialog" aria-label="${esc(v.t("open_details"))}">${svgIcon(ICONS.expand)}</button>` : ""}
-    ${v.closeButton ? `<button type="button" class="zoom" data-close aria-label="${esc(v.t("close"))}">${svgIcon(ICONS.close)}</button>` : ""}
+    ${headerButtons(v)}
   </div>`;
 
 export const battery = (v) => {
@@ -527,12 +557,23 @@ export const mini = (v) => {
   const btn = v.inline
     ? `<button type="button" class="zoom" data-toggle aria-expanded="${!!v.expanded}" aria-label="${esc(t("open_details"))}">${svgIcon(ICONS.chevron)}</button>`
     : `<button type="button" class="zoom" data-open aria-haspopup="dialog" aria-label="${esc(t("open_details"))}">${svgIcon(ICONS.chevron)}</button>`;
-  return `
-    <div class="mini">
+  const ring = `
       <div class="mring clickable" data-more="${esc(v.config.soc_entity)}">
         ${socRing({ soc: live.soc, size: 56, stroke: 6, color: ringColor, marker: false, label: t("ring_label", { soc: fmtNum(live.soc, 0, lang), target: fmtNum(target, 0, lang) }) })}
         <div class="ringval"><div class="pct">${live.soc != null ? Math.round(live.soc) : "–"}<small>%</small></div></div>
-      </div>
+      </div>`;
+  // Illustrated: the banner with the expand / detail button in its corner, then the ring and the key figures.
+  if (v.illustrated) {
+    const zoom = v.inline
+      ? `<button type="button" class="zoom" data-toggle aria-expanded="${!!v.expanded}" aria-label="${esc(t("open_details"))}">${svgIcon(ICONS.expand)}</button>`
+      : `<button type="button" class="zoom" data-open aria-haspopup="dialog" aria-label="${esc(t("open_details"))}">${svgIcon(ICONS.expand)}</button>`;
+    return `${banner(v, zoom)}
+    <div class="mini">${ring}
+      <div class="mmain">${parts.length ? `<div class="mdetail">${parts.join(" · ")}</div>` : ""}</div>
+    </div>`;
+  }
+  return `
+    <div class="mini">${ring}
       <div class="mmain">
         <div class="mtop"><span class="name">${esc(v.name)}</span>${pill(v)}</div>
         ${parts.length ? `<div class="mdetail">${parts.join(" · ")}</div>` : ""}

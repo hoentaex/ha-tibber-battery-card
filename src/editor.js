@@ -41,6 +41,11 @@ const LABELS = {
     sections: "Abschnitte",
     animations: "Animationen",
     popup: "Detailansicht als Popup",
+    illustration: "Illustrierter Kopf",
+    illustration_theme: "Bild im Kopf",
+    theme_auto: "Wie das Theme",
+    theme_day: "Tag",
+    theme_night: "Nacht",
     show_history: "24-h-Verlauf auch in der Karte",
     history_collapsed: "24-h-Verlauf anfangs eingeklappt",
     activity_collapsed: "Letzte Aktivitäten anfangs eingeklappt",
@@ -103,6 +108,11 @@ const LABELS = {
     sections: "Sections",
     animations: "Animations",
     popup: "Detail view as a popup",
+    illustration: "Illustrated header",
+    illustration_theme: "Header picture",
+    theme_auto: "Follow the theme",
+    theme_day: "Day",
+    theme_night: "Night",
     show_history: "24 h history in the card too",
     history_collapsed: "24 h history collapsed at first",
     activity_collapsed: "Recent activity collapsed at first",
@@ -230,6 +240,7 @@ export const editorSchema = (lang, { mini = false } = {}) => {
           name: "",
           schema: [
             { name: "animations", selector: { boolean: {} } },
+            { name: "illustration", selector: { boolean: {} } },
             { name: "popup", selector: { boolean: {} } },
             { name: "show_history", selector: { boolean: {} } },
             { name: "history_collapsed", selector: { boolean: {} } },
@@ -239,6 +250,19 @@ export const editorSchema = (lang, { mini = false } = {}) => {
               selector: { number: { min: 1, max: 72, step: 1, mode: "box", unit_of_measurement: "h" } },
             },
           ],
+        },
+        {
+          name: "illustration_theme",
+          selector: {
+            select: {
+              mode: "dropdown",
+              options: [
+                { value: "", label: L.theme_auto },
+                { value: "day", label: L.theme_day },
+                { value: "night", label: L.theme_night },
+              ],
+            },
+          },
         },
         {
           name: "language",

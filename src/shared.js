@@ -22,6 +22,8 @@ export const DEFAULTS = {
   price_time_key: "start_time",
   price_value_key: "price",
   invert_battery_power: false,
+  illustration: true,
+  illustration_theme: "",
   mode_options: { auto: "auto", force: "erzwingen", block: "sperren" },
 };
 
@@ -38,6 +40,8 @@ export const STRINGS = {
     st_forced_done: "Erzwungen · Ziel erreicht",
     st_forced_short: "Erzwungen",
     st_idle: "Bereit",
+    bn_blocked: "Netzladen gesperrt",
+    bn_waiting: "wartet auf Ladefenster",
     soc: "Ladestand",
     target: "Ziel",
     force_until: "Erzwingen bis",
@@ -124,6 +128,8 @@ export const STRINGS = {
     st_forced_done: "Forced · target reached",
     st_forced_short: "Forced",
     st_idle: "Ready",
+    bn_blocked: "grid charging blocked",
+    bn_waiting: "waiting for a charge window",
     soc: "State of charge",
     target: "Target",
     force_until: "Force up to",

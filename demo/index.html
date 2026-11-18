@@ -66,14 +66,16 @@
         });
         if (minimal) hass.services = {};
         cards = ["light", "dark"].flatMap((id) => {
+          // Both columns share one hass: the picture of the illustrated header follows the column, not the theme.
+          const theme = { illustration_theme: id === "dark" ? "night" : "day" };
           const el = document.createElement("tibber-battery-card");
-          el.setConfig({ ...config, popup: true });
+          el.setConfig({ ...config, ...theme, popup: true });
           el.hass = hass;
           const miniEl = document.createElement("tibber-battery-mini-card");
-          miniEl.setConfig({ ...config, type: "custom:tibber-battery-mini-card" });
+          miniEl.setConfig({ ...config, ...theme, type: "custom:tibber-battery-mini-card" });
           miniEl.hass = hass;
           const inlineEl = document.createElement("tibber-battery-mini-card");
-          inlineEl.setConfig({ ...config, type: "custom:tibber-battery-mini-card", popup: false });
+          inlineEl.setConfig({ ...config, ...theme, type: "custom:tibber-battery-mini-card", popup: false });
           inlineEl.hass = hass;
           $(id).replaceChildren(miniEl, inlineEl, el);
           return [el, miniEl, inlineEl];

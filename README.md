@@ -226,6 +226,8 @@ pv_forecast_today_entity: sensor.energy_production_today
 | `show_tomorrow` | Morgen-Preise anhängen, sobald da | `false` |
 | `sections` | Reihenfolge / Auswahl: `header`, `battery`, `price`, `reasons`, `controls`, `footer`, `activity` | alle |
 | `animations` | Flussanimation (respektiert `prefers-reduced-motion`) | `true` |
+| `illustration` | Illustrierter Kopf: Strommast, Zählerkasten mit Tibber Pulse und Akku mit LED-Ladestand, oben rechts Preis und was gerade passiert, Bodenstreifen in der Zustandsfarbe (blau Netzladen, gelb PV, grün Akku → Haus, amber gesperrt, grau Ruhe). `false` = schlichter Kopf | `true` |
+| `illustration_theme` | `day` oder `night` erzwingen; ohne Angabe folgt das Bild dem dunklen Theme von Home Assistant | wie das Theme |
 | `show_history` | 24-h-Verlauf (Ladestand, PV und Netzladung) auch in der normalen Karte, unter der Tagesbilanz | `false` |
 | `history_collapsed` | 24-h-Verlauf startet eingeklappt; ein Klick auf die Überschrift klappt ihn auf (erst dann werden die Daten geladen) | `false` |
 | `activity_collapsed` | „Letzte Aktivitäten“ starten eingeklappt; ein Klick auf die Überschrift klappt sie auf | `false` |
