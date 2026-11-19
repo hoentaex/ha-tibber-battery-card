@@ -35,6 +35,7 @@ const LABELS = {
     pv_today_entity: "PV heute (kWh)",
     pv_forecast_today_entity: "PV-Prognose heute (kWh)",
     price_entity: "Preissensor (leer: tibber.get_prices)",
+    price_limit_entity: "Preisgrenze fürs Netzladen (Linie im Diagramm, bei mehreren die niedrigste)",
     cheap_slots: "Ladefenster: günstigste Viertelstunden",
     window_horizon_slots: "Ladefenster: Horizont in Viertelstunden",
     show_tomorrow: "Morgen-Preise anhängen",
@@ -102,6 +103,7 @@ const LABELS = {
     pv_today_entity: "PV today (kWh)",
     pv_forecast_today_entity: "PV forecast today (kWh)",
     price_entity: "Price sensor (empty: tibber.get_prices)",
+    price_limit_entity: "Price limit for grid charging (line in the chart, the lowest of several)",
     cheap_slots: "Charging window: cheapest quarter hours",
     window_horizon_slots: "Charging window: horizon in quarter hours",
     show_tomorrow: "Append tomorrow's prices",
@@ -210,6 +212,7 @@ export const editorSchema = (lang, { mini = false } = {}) => {
       flatten: true,
       schema: [
         ent("price_entity", ["sensor"]),
+        ent("price_limit_entity", SENSOR_NUM, { multiple: true }),
         { name: "cheap_slots", selector: { number: { min: 0, max: 96, step: 1, mode: "box" } } },
         { name: "window_horizon_slots", selector: { number: { min: 1, max: 192, step: 1, mode: "box" } } },
         { name: "show_tomorrow", selector: { boolean: {} } },
@@ -464,5 +467,7 @@ export const detectConfig = (hass) => {
     return id.startsWith("sensor.") && Array.isArray(a.today) && a.today[0]?.start_time !== undefined;
   });
   if (price) config.price_entity = price;
+  const limit = ids.find((id) => id.startsWith("input_number.") && /price_threshold|preisgrenze|preis_grenze/.test(id));
+  if (limit) config.price_limit_entity = limit;
   return config;
 };

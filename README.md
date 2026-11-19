@@ -139,6 +139,16 @@ price_entity: sensor.tibber_preise_15min
 Feldnamen sind einstellbar (`price_time_key`, `price_value_key`, `price_today_attribute`, `price_tomorrow_attribute`),
 damit auch andere Quellen (Nordpool o. Ä.) passen. Preise unter 5 werden als €/kWh gelesen, alles darüber als ct/kWh.
 
+**Preisgrenze:** `price_limit_entity` zeigt, bis zu welchem Preis dein Controller aus dem Netz laden darf: eine
+gestrichelte rote Linie im Diagramm und „Ladegrenze 31,1 ct/kWh“ in der Legende. Bei einer Liste gilt der niedrigste
+Wert, wie bei einer Automation, die unter beiden Grenzen bleiben muss:
+
+```yaml
+price_limit_entity:
+  - input_number.tibber_grid_charge_price_threshold
+  - input_number.aktueller_strompreis
+```
+
 **Ladefenster – ein mitlaufendes Fenster wie in der Steuerung:** die `cheap_slots` günstigsten (Standard 24) der
 nächsten `window_horizon_slots` Viertelstunden (Standard 48) ab dem aktuellen Slot, also „6 h aus den nächsten 12 h“.
 Es läuft mit der Uhr mit und reicht über Mitternacht in den Folgetag, sobald die Morgenpreise da sind; fehlen sie,
@@ -213,10 +223,11 @@ pv_forecast_today_entity: sensor.energy_production_today
 | `target_soc_entity` | Ziel-SoC (`input_number`) | – |
 | `force_target_soc_entity` | Ziel-SoC für Erzwingen (`input_number`); im Modus Erzwingen steuert der Schieber diesen Wert („Erzwingen bis“), und der Ring zeigt ihn als Ziel | – |
 | `override_until_entity` | Ablauf von Erzwingen / Sperren (`input_datetime` mit Datum + Uhrzeit oder Timestamp-Sensor); liegt er in der Vergangenheit, wird keine Uhrzeit gezeigt | – |
-| `reason_entity` | Klartext-Grund der aktuellen Entscheidung (`input_text` oder Sensor), als Zeile über den Chips | – |
+| `reason_entity` | Klartext-Grund der aktuellen Entscheidung (`input_text` oder Sensor), als erster Chip: rot „Blockiert: …“, solange nicht aus dem Netz geladen wird, blau „Lädt: …“, solange geladen wird | – |
 | `deficit_entity`, `pv_block_entity`, `window_entity`, `forecast_factor_entity` | Chips „Warum lädt er (nicht)?“ (`window_entity` nur, wenn es kein Preisfenster gibt) | – |
 | `savings_today_entity`, `grid_kwh_today_entity`, `pv_today_entity`, `pv_forecast_today_entity` | Fußzeile | – |
 | `price_entity` | Preise aus Attributen statt `tibber.get_prices` | – |
+| `price_limit_entity` | Preisgrenze fürs Netzladen als gestrichelte rote Linie im Preisdiagramm, mit Wert in der Legende; eine Entity oder eine Liste (dann gilt die niedrigste, z. B. Schwelle und Vergleichstarif). €-Werte werden in ct umgerechnet | – |
 | `price_today_attribute`, `price_tomorrow_attribute` | Attributnamen | `today`, `tomorrow` |
 | `price_time_key`, `price_value_key` | Feldnamen je Eintrag | `start_time`, `price` |
 | `window_attribute` | Attribut mit fertigem Ladefenster im Preissensor | `ladefenster` |
@@ -330,6 +341,10 @@ events appear live; folded, nothing is loaded. `activity_collapsed: true` starts
 **Charging window:** a rolling window like the HA control logic: the `cheap_slots` cheapest (24) of the next
 `window_horizon_slots` quarter hours (48) from the current slot, running past midnight once tomorrow's prices are
 known. A `ladefenster` attribute on the price sensor (`window_attribute`) is used as is.
+
+**Price limit:** `price_limit_entity` (one entity or a list; the lowest counts, EUR values are converted to ct) draws
+the price up to which your controller may charge from the grid as a dashed red line in the price chart, with
+"Charge limit 31.1 ct/kWh" in the legend.
 
 **You need:** Home Assistant 2024.8+, a state-of-charge sensor (the only required entity), and for prices either the
 [Tibber integration](https://www.home-assistant.io/integrations/tibber/) (the card calls `tibber.get_prices` itself and

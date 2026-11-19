@@ -10,12 +10,14 @@ let gid = 0;
 
 // Price chart over [from, to) with the charging window blocks behind the line.
 // The x axis is time, so 92- and 100-slot days fit the same width.
-export const priceChart = ({ slots, from, to, now, blocks, label }) => {
+// `limit` (ct/kWh) draws the grid-charging price limit as a horizontal line; the scale always includes it.
+export const priceChart = ({ slots, from, to, now, blocks, label, limit, limitLabel }) => {
   const id = `tb${++gid}`;
   const span = to - from;
   const ps = slots.map((s) => s.p);
-  const lo = Math.min(...ps);
-  const hi = Math.max(...ps);
+  const hasLimit = Number.isFinite(limit);
+  const lo = Math.min(...ps, ...(hasLimit ? [limit] : []));
+  const hi = Math.max(...ps, ...(hasLimit ? [limit] : []));
   const range = hi - lo || 1;
   const X = (t) => ((t - from) / span) * CHART_W;
   const Y = (p) => TOP + ((hi - p) / range) * (BOTTOM - TOP);
@@ -66,8 +68,14 @@ export const priceChart = ({ slots, from, to, now, blocks, label }) => {
       <path d="${area(future)}" fill="url(#${id}f)" opacity=".45"></path>
       <path class="line" d="${past.length > 1 ? path(past) : ""}" stroke="url(#${id}l)"></path>
       <path class="line future" d="${future.length > 1 ? path(future) : ""}" stroke="url(#${id}l)"></path>
+      ${hasLimit ? `<path class="limit" d="M0 ${Y(limit).toFixed(1)} H${CHART_W}"></path>` : ""}
       ${now >= from && now < to ? `<path class="now" d="M${nowX.toFixed(1)} 0 V${BOTTOM + 4}"></path>` : ""}
     </svg>
+    ${
+      hasLimit && limitLabel
+        ? `<span class="limit-label${Y(limit) < TOP + 14 ? " below" : ""}" style="top:${((Y(limit) / CHART_H) * 100).toFixed(2)}%">${esc(limitLabel)}</span>`
+        : ""
+    }
     ${
       nowPt
         ? `<span class="now-dot" style="left:${((nowPt[0] / CHART_W) * 100).toFixed(2)}%;top:${((nowPt[1] / CHART_H) * 100).toFixed(2)}%"></span>`

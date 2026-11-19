@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.0 (2026-11-19)
+
+- **Price limit in the chart:** `price_limit_entity` (one entity or a list, the lowest counts) draws the price up to
+  which the controller may charge from the grid as a dashed red line, with "Ladegrenze 31,1 ct/kWh" in the legend.
+  The scale always includes it. EUR values are converted to ct. In the visual editor under prices, and found by
+  itself for helpers named `…price_threshold` / `…preisgrenze`
+- **No more jumping:** the card no longer rebuilds its whole content on every change but updates only what changed.
+  The page no longer jumps up after a click, and focus and hover stay put
+
 ## 0.6.1 (2026-11-18)
 
 - **Reason as a badge:** the controller's reason (`reason_entity`) is no longer a line with a check mark above the

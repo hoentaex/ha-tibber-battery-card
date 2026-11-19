@@ -3,7 +3,7 @@
 import { flowRow, historyChart, priceChart, socRing } from "./chart.js";
 import { fmtWhen } from "./activity.js";
 import { BANNER_STYLE, gridScene, readout } from "./banner.js";
-import { esc, fmtNum, fmtTime, fmtW, modeHint, STATUS_COLOR, statusText } from "./shared.js";
+import { esc, fmtNum, fmtTime, fmtW, modeHint, priceLimitOf, STATUS_COLOR, statusText } from "./shared.js";
 
 export const ICONS = {
   tower:
@@ -111,6 +111,12 @@ export const STYLE = `
   .chart .grid.day { stroke-dasharray: 2 3; }
   .chart .line { fill: none; stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
   .chart .line.future { stroke-width: 2; stroke-dasharray: 5 4; }
+  .chart .limit { stroke: var(--tb-stop); stroke-width: 1.5; stroke-dasharray: 6 4; vector-effect: non-scaling-stroke; }
+  .limit-label { position: absolute; left: 0; transform: translateY(calc(-100% - 2px)); font-size: 11px; line-height: 14px; font-weight: 500;
+                 color: var(--tb-stop); background: color-mix(in srgb, var(--ha-card-background, var(--card-background-color, #fff)) 80%, transparent);
+                 padding: 0 4px; border-radius: 4px; pointer-events: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .limit-label.below { transform: translateY(2px); }
+  .lg-limit { width: 16px; border-top: 2px dashed var(--tb-stop); }
   .chart .now { stroke: var(--primary-text-color); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
   .now-dot { position: absolute; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; box-sizing: border-box; pointer-events: none;
              background: var(--ha-card-background, var(--card-background-color, #fff)); border: 3px solid var(--primary-text-color); }
@@ -335,6 +341,8 @@ export const battery = (v) => {
 
 export const price = (v) => {
   const { t, lang, prices } = v;
+  const limit = priceLimitOf(v.hass, v.config);
+  const limitText = limit != null ? t("legend_limit", { p: `${fmtNum(limit, 1, lang)} ${t("per_kwh")}` }) : "";
   if (!prices.slots.length) {
     if (!prices.expected) return "";
     return `<div class="panel"><div class="kicker">${svgIcon(ICONS.euro)}<span>${esc(t("price_now"))}</span></div>
@@ -372,6 +380,8 @@ export const price = (v) => {
           now,
           blocks: prices.blocks,
           label: t("chart_label", { p: fmtNum(current?.p, 1, lang) }),
+          limit,
+          limitLabel: limit != null ? fmtNum(limit, 1, lang) : "",
         })}
         <span class="hover-line" hidden></span>
         <span class="tip" hidden></span>
@@ -381,6 +391,7 @@ export const price = (v) => {
         ${windowShown ? `<span><span class="lg-win"></span>${esc(t("legend_window"))}</span>` : ""}
         <span><span class="lg-now"></span>${esc(t("legend_now"))}</span>
         <span><span class="lg-fc"></span>${esc(t("legend_forecast"))}</span>
+        ${limitText ? `<span class="clickable" data-more="${esc([v.config.price_limit_entity].flat()[0])}"><span class="lg-limit"></span>${esc(limitText)}</span>` : ""}
       </div>
     </div>`;
 };

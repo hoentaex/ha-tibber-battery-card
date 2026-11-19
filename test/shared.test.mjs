@@ -20,6 +20,7 @@ import {
   PriceSource,
   parseTibberResponse,
   priceLevel,
+  priceLimitOf,
   priceStats,
   QUARTER,
   quarterStart,
@@ -333,4 +334,21 @@ test("price sources are shared per home / sensor and notify every waiting card",
   await src.pending;
   assert.equal(calls, 1);
   assert.equal(notified, 2);
+});
+
+test("price limit: lowest of the entities in ct/kWh, EUR converted, broken ones skipped", () => {
+  const st = (state, unit) => ({ state, attributes: unit ? { unit_of_measurement: unit } : {} });
+  const hass = {
+    states: {
+      "input_number.thr": st("0.311", "EUR/kWh"),
+      "input_number.gv": st("0.3533"),
+      "input_number.ct": st("29.5", "ct/kWh"),
+      "input_number.off": st("unavailable"),
+    },
+  };
+  assert.equal(priceLimitOf(hass, { price_limit_entity: "input_number.thr" }).toFixed(2), "31.10");
+  assert.equal(priceLimitOf(hass, { price_limit_entity: ["input_number.thr", "input_number.gv"] }).toFixed(2), "31.10");
+  assert.equal(priceLimitOf(hass, { price_limit_entity: ["input_number.gv", "input_number.ct"] }), 29.5);
+  assert.equal(priceLimitOf(hass, { price_limit_entity: ["input_number.off", "sensor.missing"] }), undefined);
+  assert.equal(priceLimitOf(hass, {}), undefined);
 });

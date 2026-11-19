@@ -62,6 +62,7 @@ export const STRINGS = {
     legend_window: "Ladefenster",
     legend_now: "jetzt",
     legend_forecast: "Prognose",
+    legend_limit: "Ladegrenze {p}",
     no_prices: "Keine Preise verfügbar",
     loading_prices: "Preise werden geladen …",
     chart_label: "Strompreis in 15-Minuten-Schritten, aktuell {p} ct/kWh, Ladefenster markiert",
@@ -152,6 +153,7 @@ export const STRINGS = {
     legend_window: "Charging window",
     legend_now: "now",
     legend_forecast: "upcoming",
+    legend_limit: "Charge limit {p}",
     no_prices: "No prices available",
     loading_prices: "Loading prices …",
     chart_label: "Electricity price in 15-minute steps, now {p} ct/kWh, charging window marked",
@@ -424,6 +426,22 @@ export const normalizeSlots = (list, timeKey = "start_time", valueKey = "price")
   const max = Math.max(...out.map((s) => Math.abs(s.p)), 0);
   if (max < 5) for (const s of out) s.p *= 100;
   return out;
+};
+
+// The price limit for grid charging in ct/kWh: the lowest of the configured entities (one id or a list, e.g. the
+// controller's threshold and the fixed tariff it must beat). EUR values (unit EUR/€, or below 5 without a unit)
+// become ct. Missing or non-numeric entities are skipped; none left → undefined.
+export const priceLimitOf = (hass, config) => {
+  const ids = [config.price_limit_entity].flat().filter((id) => typeof id === "string" && id);
+  const vals = [];
+  for (const id of ids) {
+    const st = hass?.states?.[id];
+    const n = Number.parseFloat(st?.state);
+    if (!Number.isFinite(n)) continue;
+    const unit = String(st.attributes?.unit_of_measurement || "");
+    vals.push(/ct|cent/i.test(unit) ? n : /eur|€/i.test(unit) || Math.abs(n) < 5 ? n * 100 : n);
+  }
+  return vals.length ? Math.min(...vals) : undefined;
 };
 
 // Prices read from an entity's attributes, no service call.

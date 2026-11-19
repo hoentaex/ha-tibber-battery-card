@@ -13,6 +13,7 @@ import { slotIndexAt } from "./chart.js";
 import { isNight } from "./banner.js";
 import { detectConfig, TibberBatteryCardEditor, TibberBatteryMiniCardEditor } from "./editor.js";
 import "./popup.js";
+import { morph } from "./morph.js";
 import { mini, RENDERERS, STYLE } from "./sections.js";
 import {
   boolOf,
@@ -48,8 +49,9 @@ const VERSION = __VERSION__;
 // Config keys holding entity ids: their states decide when the card re-renders.
 const entityIds = (config) =>
   Object.entries(config)
-    .filter(([k, v]) => typeof v === "string" && /(_entity|_switch)$/.test(k))
-    .map(([, v]) => v);
+    .filter(([k]) => /(_entity|_switch)$/.test(k))
+    .flatMap(([, v]) => [v].flat())
+    .filter((v) => typeof v === "string");
 
 export class TibberBatteryCard extends HTMLElement {
   constructor() {
@@ -235,17 +237,15 @@ export class TibberBatteryCard extends HTMLElement {
     }
     this._lastView = v;
     const html = this._content(v);
-    const focus = this.shadowRoot.activeElement;
-    const focusKey = focus?.hasAttribute?.("data-fold")
-      ? `[data-fold="${focus.dataset.fold}"]`
-      : focus?.dataset?.mode
-        ? `[data-mode="${focus.dataset.mode}"]`
-        : focus?.id
-          ? `#${focus.id}`
-          : "";
-    this.shadowRoot.innerHTML = `<style>${STYLE}</style><ha-card class="${this._config._detail ? "detail" : ""}">${html}</ha-card>`;
+    // Built once, then only the changed parts are updated (see morph.js): no jumps, focus and hover stay.
+    let card = this.shadowRoot.querySelector("ha-card");
+    if (!card) {
+      this.shadowRoot.innerHTML = `<style>${STYLE}</style><ha-card></ha-card>`;
+      card = this.shadowRoot.querySelector("ha-card");
+    }
+    card.className = this._config._detail ? "detail" : "";
+    morph(card, html);
     if (this._dialog) this._dialog.hass = this._hass;
-    if (focusKey) this.shadowRoot.querySelector(focusKey)?.focus();
     this._bind();
     this._fitPill();
   }
