@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.0 (2026-11-20)
+
+- **Today as KPI tiles** (as in the energy, oil and heating cards): the footer becomes the section **Today** with its
+  own heading and tiles for savings, grid charge and PV against the forecast (bar and "149 % of the forecast"). A
+  figure without a sensor or value leaves its tile out and the row closes up; a click opens the sensor's dialog.
+  The section key stays `footer`.
+
 ## 0.7.0 (2026-11-19)
 
 - **Price limit in the chart:** `price_limit_entity` (one entity or a list, the lowest counts) draws the price up to

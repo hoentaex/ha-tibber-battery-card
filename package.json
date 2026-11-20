@@ -1,6 +1,6 @@
 {
   "name": "ha-tibber-battery-card",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Lovelace card for Home Assistant: home battery with a dynamic electricity tariff (Tibber), 15-minute prices, charging window and grid-charge mode.",
   "private": true,
   "type": "module",

@@ -57,7 +57,7 @@ Aufbau und Look orientieren sich an den Karten von [juju35](https://github.com/j
 | `input_datetime` (Datum + Uhrzeit) oder Sensor mit `device_class: timestamp`, in dem deine Automation das Ende von Erzwingen / Sperren ablegt | „Gesperrt bis 13:00“, „zurück auf Auto um …“ | optional |
 | `input_text` (oder Sensor), in den dein Controller den Grund seiner Entscheidung schreibt | Entscheidungszeile über den Chips | optional |
 | `input_number` oder Wert `capacity_kwh` für die Akkukapazität | kWh unter dem Ring | optional |
-| Weitere Sensoren für Defizit, PV-Sperre, Ladefenster, Forecast-Faktor, Ersparnis, Netzladung, PV heute / Prognose | Chips und Fußzeile | optional |
+| Weitere Sensoren für Defizit, PV-Sperre, Ladefenster, Forecast-Faktor, Ersparnis, Netzladung, PV heute / Prognose | Chips und Abschnitt „Heute“ (Kacheln) | optional |
 | **Eigene Automationen**, die Modus und Ziel-SoC auswerten und z. B. die Netzladung der Solarbank schalten | das eigentliche Laden | für eine echte Steuerung |
 
 Fehlt eine Entity oder ist sie `unavailable`, blendet die Karte den zugehörigen Wert, Chip oder Abschnitt aus –
@@ -225,7 +225,7 @@ pv_forecast_today_entity: sensor.energy_production_today
 | `override_until_entity` | Ablauf von Erzwingen / Sperren (`input_datetime` mit Datum + Uhrzeit oder Timestamp-Sensor); liegt er in der Vergangenheit, wird keine Uhrzeit gezeigt | – |
 | `reason_entity` | Klartext-Grund der aktuellen Entscheidung (`input_text` oder Sensor), als erster Chip: rot „Blockiert: …“, solange nicht aus dem Netz geladen wird, blau „Lädt: …“, solange geladen wird | – |
 | `deficit_entity`, `pv_block_entity`, `window_entity`, `forecast_factor_entity` | Chips „Warum lädt er (nicht)?“ (`window_entity` nur, wenn es kein Preisfenster gibt) | – |
-| `savings_today_entity`, `grid_kwh_today_entity`, `pv_today_entity`, `pv_forecast_today_entity` | Fußzeile | – |
+| `savings_today_entity`, `grid_kwh_today_entity`, `pv_today_entity`, `pv_forecast_today_entity` | Abschnitt „Heute“: Kacheln Ersparnis, Netzladung, PV gegen Prognose (ohne Sensor entfällt die Kachel, ohne Lücke) | – |
 | `price_entity` | Preise aus Attributen statt `tibber.get_prices` | – |
 | `price_limit_entity` | Preisgrenze fürs Netzladen als gestrichelte rote Linie im Preisdiagramm, mit Wert in der Legende; eine Entity oder eine Liste (dann gilt die niedrigste, z. B. Schwelle und Vergleichstarif). €-Werte werden in ct umgerechnet | – |
 | `price_today_attribute`, `price_tomorrow_attribute` | Attributnamen | `today`, `tomorrow` |

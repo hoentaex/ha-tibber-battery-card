@@ -3,6 +3,7 @@
 import { flowRow, historyChart, priceChart, socRing } from "./chart.js";
 import { fmtWhen } from "./activity.js";
 import { BANNER_STYLE, gridScene, readout } from "./banner.js";
+import { KPI_STYLE, kpiGrid } from "./kpi.js";
 import { esc, fmtNum, fmtTime, fmtW, modeHint, priceLimitOf, STATUS_COLOR, statusText } from "./shared.js";
 
 export const ICONS = {
@@ -16,6 +17,7 @@ export const ICONS = {
   chevron: "M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z",
   expand:
     "M10,21V19H6.41L10.91,14.5L9.5,13.09L5,17.59V14H3V21H10M14.5,10.91L19,6.41V10H21V3H14V5H17.59L13.09,9.5L14.5,10.91Z",
+  sun: "M12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7M12,1L14.39,4.42L12,4L9.61,4.42L12,1M3.5,6.5L7.66,6.14L6,8L5.08,10.25L3.5,6.5M3.5,17.5L5.08,13.75L6,16L7.66,17.86L3.5,17.5M20.5,17.5L16.34,17.86L18,16L18.92,13.75L20.5,17.5M20.5,6.5L18.92,10.25L18,8L16.34,6.14L20.5,6.5M12,23L9.61,19.58L12,20L14.39,19.58L12,23Z",
   clock:
     "M13.5,8H12V13L16.28,15.54L17,14.33L13.5,12.25V8M13,3A9,9 0 0,0 4,12H1L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3",
   close:
@@ -172,9 +174,6 @@ export const STYLE = `
   .slider input { width: 100%; min-height: 44px; margin: 0; accent-color: var(--tb-grid); cursor: pointer; }
 
   /* Footer */
-  .footer { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px; border-top: 1px solid var(--tb-track); padding-top: 14px; }
-  .footer .k { font-size: 12px; color: var(--secondary-text-color); }
-  .footer .v { font-size: 15px; font-weight: 500; margin-top: 2px; }
   .clickable { cursor: pointer; }
 
   /* Detail button (header) and expand button (mini card) */
@@ -214,6 +213,8 @@ export const STYLE = `
   .hist + .hist { margin-top: 10px; }
 
 ${BANNER_STYLE}
+${KPI_STYLE}
+  .today .section-title { margin-bottom: 10px; }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { transition: none !important; animation: none !important; }
   }
@@ -514,39 +515,49 @@ export const controls = (v) => {
     </div>`;
 };
 
+/**
+ * Today's figures as KPI tiles under their own heading: savings, grid charge and PV against the forecast. A figure
+ * without a sensor (or without a value) leaves its tile out; the rows close up.
+ */
 export const footer = (v) => {
   const { t, lang, config } = v;
-  const items = [];
-  if (v.has(config.savings_today_entity)) {
-    const unit = v.hass.states[config.savings_today_entity].attributes?.unit_of_measurement;
-    const cur = !unit || unit === "EUR" || unit === "€" ? "€" : unit;
-    items.push([
-      t("savings_today"),
-      `${fmtNum(v.num(config.savings_today_entity), 2, lang)} ${cur}`,
-      config.savings_today_entity,
-    ]);
-  }
-  if (v.has(config.grid_kwh_today_entity))
-    items.push([
-      t("grid_today"),
-      `${fmtNum(v.num(config.grid_kwh_today_entity), 2, lang)} kWh`,
-      config.grid_kwh_today_entity,
-    ]);
+  const unit = v.has(config.savings_today_entity)
+    ? v.hass.states[config.savings_today_entity].attributes?.unit_of_measurement
+    : null;
+  const cur = !unit || unit === "EUR" || unit === "€" ? "€" : unit;
+  const val = (id, d) => (v.has(id) && v.num(id) != null ? fmtNum(v.num(id), d, lang) : null);
   const pv = v.num(config.pv_today_entity);
   const fc = v.num(config.pv_forecast_today_entity);
-  if (pv != null || fc != null)
-    items.push([
-      t("pv_today"),
-      `${fmtNum(pv, 1, lang)} / ${fmtNum(fc, 1, lang)} kWh`,
-      config.pv_today_entity || config.pv_forecast_today_entity,
-    ]);
-  if (!items.length) return "";
-  return `<div class="footer">${items
-    .map(
-      ([k, val, e]) =>
-        `<div class="clickable" data-more="${esc(e)}"><div class="k">${esc(k)}</div><div class="v">${esc(val)}</div></div>`,
-    )
-    .join("")}</div>`;
+  const tiles = kpiGrid([
+    {
+      k: t("savings_today"),
+      v: val(config.savings_today_entity, 2),
+      u: cur,
+      icon: ICONS.euro,
+      c: "var(--tb-batt)",
+      more: config.savings_today_entity,
+    },
+    {
+      k: t("grid_today"),
+      v: val(config.grid_kwh_today_entity, 2),
+      u: "kWh",
+      icon: ICONS.tower,
+      c: "var(--tb-grid)",
+      more: config.grid_kwh_today_entity,
+    },
+    {
+      k: t("pv_today"),
+      v: pv == null ? null : fmtNum(pv, 1, lang),
+      u: fc == null ? "kWh" : `/ ${fmtNum(fc, 1, lang)} kWh`,
+      icon: ICONS.sun,
+      c: "var(--tb-pv)",
+      p: fc > 0 ? (pv / fc) * 100 : undefined,
+      s: fc > 0 ? t("of_forecast", { v: fmtNum((pv / fc) * 100, 0, lang) }) : "",
+      more: config.pv_today_entity || config.pv_forecast_today_entity,
+    },
+  ]);
+  if (!tiles) return "";
+  return `<div class="today">${title("euro", t("today_title"))}${tiles}</div>`;
 };
 
 // Mini card: ring, name, status pill, "price · level · PV · target", and the expand button.
